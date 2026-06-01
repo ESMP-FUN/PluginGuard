@@ -10,6 +10,7 @@ import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerCommandPreprocessEvent
 import org.bukkit.event.player.PlayerCommandSendEvent
+import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.plugin.java.JavaPlugin
 
 class PluginGuard : JavaPlugin(), Listener {
@@ -17,12 +18,13 @@ class PluginGuard : JavaPlugin(), Listener {
     // Immutable snapshot of every config-derived value. Swapped atomically on reload via
     // a @Volatile reference so concurrent event handlers on different Folia region threads
     // always observe a consistent set of values without taking any lock.
-    private data class Settings(
+    data class Settings(
         val hideMode: String,
         val fakePlugins: List<String>,
         val bypassPermission: String,
         val protectedCommands: Set<String>,
         val commonPluginCommands: Set<String>,
+        val honeypotCommands: Set<String>,
         val fakeServerBrand: String,
         val blockBukkitCommands: Boolean,
         val redirectBukkitCommands: Boolean,
@@ -31,10 +33,23 @@ class PluginGuard : JavaPlugin(), Listener {
         val hideServerBrand: Boolean,
         val blockCommonPluginCommands: Boolean,
         val aggressiveMode: Boolean,
+        // Logging / detection
+        val loggingEnabled: Boolean,
+        val logToFile: Boolean,
+        val logIndividualProbes: Boolean,
+        val detectionEnabled: Boolean,
+        val detectionScoreThreshold: Int,
+        val detectionWindowSeconds: Int,
+        val detectionAlertCooldownSeconds: Int,
+        val notifyPermission: String,
     )
 
     @Volatile
     private lateinit var settings: Settings
+
+    private val detector = ProbeDetector(this)
+
+    fun currentSettings(): Settings = settings
 
     override fun onEnable() {
         saveDefaultConfig()
@@ -42,6 +57,10 @@ class PluginGuard : JavaPlugin(), Listener {
         server.pluginManager.registerEvents(this, this)
         registerPaperListeners()
         logger.info("PluginGuard enabled - protecting ${server.pluginManager.plugins.size} plugins")
+    }
+
+    override fun onDisable() {
+        detector.forgetAll()
     }
 
     private fun registerPaperListeners() {
@@ -66,6 +85,7 @@ class PluginGuard : JavaPlugin(), Listener {
             bypassPermission = config.getString("bypass-permission", "pluginguard.bypass")!!,
             protectedCommands = config.getStringList("protected-commands").mapTo(HashSet()) { it.lowercase() },
             commonPluginCommands = config.getStringList("common-plugin-commands").mapTo(HashSet()) { it.lowercase() },
+            honeypotCommands = config.getStringList("honeypot-commands").mapTo(HashSet()) { it.removePrefix("/").lowercase() },
             fakeServerBrand = config.getString("fake-server-brand", "vanilla")!!,
             blockBukkitCommands = config.getBoolean("block-bukkit-commands", true),
             redirectBukkitCommands = config.getBoolean("redirect-bukkit-commands", false),
@@ -74,6 +94,19 @@ class PluginGuard : JavaPlugin(), Listener {
             hideServerBrand = config.getBoolean("hide-server-brand", true),
             blockCommonPluginCommands = config.getBoolean("block-common-plugin-commands", true),
             aggressiveMode = config.getBoolean("aggressive-mode", false),
+            loggingEnabled = config.getBoolean("logging.enabled", true).let {
+                // logging section is implicitly enabled if any sub-toggle is on
+                it || config.getBoolean("logging.log-to-file", false) ||
+                    config.getBoolean("logging.log-individual-probes", false) ||
+                    config.getBoolean("logging.detection.enabled", true)
+            },
+            logToFile = config.getBoolean("logging.log-to-file", false),
+            logIndividualProbes = config.getBoolean("logging.log-individual-probes", false),
+            detectionEnabled = config.getBoolean("logging.detection.enabled", true),
+            detectionScoreThreshold = config.getInt("logging.detection.score-threshold", 5),
+            detectionWindowSeconds = config.getInt("logging.detection.window-seconds", 60),
+            detectionAlertCooldownSeconds = config.getInt("logging.detection.alert-cooldown-seconds", 300),
+            notifyPermission = config.getString("logging.detection.notify-permission", "pluginguard.alerts")!!,
         )
     }
 
@@ -98,6 +131,14 @@ class PluginGuard : JavaPlugin(), Listener {
             else -> baseCommand
         }
 
+        // Honeypot first — by definition the highest-signal probe and we never want to forward it.
+        if (cleanCommand in s.honeypotCommands || baseCommand in s.honeypotCommands) {
+            event.isCancelled = true
+            sendUnknownCommand(player)
+            detector.record(player, ProbeDetector.Category.HONEYPOT, "honeypot:$baseCommand")
+            return
+        }
+
         when {
             baseCommand in s.protectedCommands || cleanCommand in s.protectedCommands -> {
                 event.isCancelled = true
@@ -106,14 +147,24 @@ class PluginGuard : JavaPlugin(), Listener {
                 } else {
                     handleProtectedCommand(player, cleanCommand, s)
                 }
+                // Skip /help and /? — far too commonly typed legitimately to be useful signal.
+                if (cleanCommand != "help" && cleanCommand != "?") {
+                    val cat = if (baseCommand.startsWith("bukkit:") || baseCommand.startsWith("minecraft:") || cleanCommand == "icanhasbukkit")
+                        ProbeDetector.Category.HIGH
+                    else
+                        ProbeDetector.Category.MEDIUM
+                    detector.record(player, cat, "/$baseCommand")
+                }
             }
             baseCommand.startsWith("bukkit:") && s.blockBukkitCommands -> {
                 event.isCancelled = true
                 sendUnknownCommand(player)
+                detector.record(player, ProbeDetector.Category.HIGH, baseCommand)
             }
             baseCommand in s.commonPluginCommands && s.blockCommonPluginCommands -> {
                 event.isCancelled = true
                 sendUnknownCommand(player)
+                detector.record(player, ProbeDetector.Category.LOW, "/$baseCommand")
             }
             s.aggressiveMode && !player.hasPermission("$baseCommand.use") -> {
                 if (server.getPluginCommand(baseCommand) != null) {
@@ -148,6 +199,11 @@ class PluginGuard : JavaPlugin(), Listener {
                 cmd != null && cmd.plugin != this && !event.player.hasPermission("$command.use")
             }
         }
+    }
+
+    @EventHandler
+    fun onPlayerQuit(event: PlayerQuitEvent) {
+        detector.forgetPlayer(event.player.uniqueId)
     }
 
     private fun handleProtectedCommand(player: Player, command: String, s: Settings) {
@@ -248,6 +304,9 @@ class PluginGuard : JavaPlugin(), Listener {
                 row("Tab Completion", if (s.hideTabCompletion) "Hidden" else "Visible")
                 row("Server Brand", if (s.hideServerBrand) s.fakeServerBrand else "Real")
                 row("Aggressive Mode", if (s.aggressiveMode) "Enabled" else "Disabled")
+                row("Detection", if (s.detectionEnabled) "On (threshold ${s.detectionScoreThreshold} / ${s.detectionWindowSeconds}s)" else "Off")
+                row("Honeypots", "${s.honeypotCommands.size} configured")
+                row("File Log", if (s.logToFile) "On" else "Off")
             }
             else -> sender.sendMessage(Component.text("Unknown subcommand. Use /pluginguard for help.", NamedTextColor.RED))
         }

@@ -24,3 +24,6 @@ permissions:
   pluginguard.reload:
     description: Reloads the PluginGuard configuration
     default: op
+  pluginguard.alerts:
+    description: Receive in-game notifications when a player trips the probe detector
+    default: op

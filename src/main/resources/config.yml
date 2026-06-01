@@ -99,3 +99,53 @@ fake-server-brand: "vanilla"
 # Use only if you want maximum security and manually grant command permissions
 # Requires players to have "<command>.use" permission to use any plugin command
 aggressive-mode: false
+
+# ===== PROBE LOGGING & DETECTION =====
+#
+# PluginGuard can record when players try to discover what plugins you run,
+# and alert online admins when a player shows a pattern of probing behavior.
+#
+# Players with "pluginguard.bypass" are never tracked.
+
+logging:
+  # Append every probe attempt to plugins/PluginGuard/probes.log (one line per event).
+  # Disabled by default — enable if you want a forensic trail.
+  log-to-file: false
+
+  # Also log every individual probe to the server console.
+  # Noisy on busy servers; off by default. The detector still logs its alerts to console.
+  log-individual-probes: false
+
+  detection:
+    # Master switch for pattern detection and admin alerts.
+    enabled: true
+
+    # Weighted score within window-seconds that triggers an alert.
+    # Probe weights:
+    #   high   (3) — bukkit:/minecraft: prefixed commands, /icanhasbukkit
+    #   medium (2) — /pl, /plugins, /ver, /version, /about
+    #   low    (1) — common-plugin enumeration (/lp, /we, /co, /mv, ...)
+    #   honeypot (5) — see honeypot-commands below (single hit fires immediately)
+    # /help and /? are never tracked because legitimate players use them constantly.
+    score-threshold: 5
+    window-seconds: 60
+
+    # Minimum seconds between alerts for the same player. Prevents alert spam
+    # from a determined prober.
+    alert-cooldown-seconds: 300
+
+    # Online players with this permission receive a chat notification on each alert.
+    # Console always logs the alert regardless.
+    notify-permission: "pluginguard.alerts"
+
+# Honeypot commands — fake commands that no legitimate user should ever type.
+# When a player types any of these, PluginGuard blocks the command AND records
+# a high-weight probe (single hit = immediate alert at the default threshold).
+#
+# Example honeypots: invent commands that sound plausible to an attacker but
+# don't actually exist on your server.
+honeypot-commands:
+  - "staffchat"
+  - "adminchat"
+  - "modchat"
+  - "opme"

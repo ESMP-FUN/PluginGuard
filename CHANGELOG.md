@@ -2,9 +2,26 @@
 
 All notable changes to PluginGuard will be documented in this file.
 
-## [1.0.0] - 2026-06-01
+## [1.1.0] - 2026-06-01
 
-## 1.0.0
+- Probe logging and pattern detection. PluginGuard now records when players try
+  to enumerate the plugin list and can alert online admins when a player crosses
+  a configurable weighted-score threshold within a sliding window.
+  - Weighted categories: high (3) for `bukkit:`/`minecraft:` prefixes and
+    `/icanhasbukkit`; medium (2) for `/pl`, `/plugins`, `/ver`, `/version`,
+    `/about`; low (1) for common-plugin enumeration (`/lp`, `/we`, `/co`, ...).
+  - `/help` and `/?` are deliberately never tracked.
+  - Optional append-only `plugins/PluginGuard/probes.log` audit trail.
+  - In-game alerts gated by new `pluginguard.alerts` permission (default: op).
+  - All I/O dispatched via Paper/Folia's async and global-region schedulers, so
+    the event hot path stays cheap and Folia-safe.
+  - Per-player state lives in a `ConcurrentHashMap` and is cleared on quit.
+- Honeypot commands. Admins can list fake commands in `honeypot-commands:` that
+  no legitimate user would ever type — a single honeypot hit weighs 5, so by
+  default it triggers an alert immediately.
+- `/pluginguard status` now reports detection state, honeypot count, and file-log state.
+
+## [1.0.0] - 2026-06-01
 
 - Target Paper API 1.21.4; supports Minecraft 1.21.x (Java 21+) and 26.x.x (Java 25+).
 - Folia support declared via `folia-supported: true`.

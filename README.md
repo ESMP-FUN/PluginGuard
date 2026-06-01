@@ -2,9 +2,9 @@
 
 #### Protect your server by hiding installed plugins from users
 
-For Minecraft Paper-based servers — supports **1.21.x** (Java 21+) and **26.x.x** (Java 25+).
-Works on Paper, Purpur, Pufferfish, Folia, and other Paper forks. Spigot/Bukkit will load
-the plugin but server-brand spoofing is disabled (Paper-only API).
+Supports Minecraft **1.21.x** (Java 21+) and **26.x.x** (Java 25+).
+Works on Paper, Purpur, Pufferfish, Folia, and other Paper forks. 
+Spigot/Bukkit will load the plugin but server-brand spoofing is disabled (Paper-only API).
 
 > Donate: https://ko-fi.com/darkstarworks
 
@@ -20,6 +20,8 @@ the plugin but server-brand spoofing is disabled (Paper-only API).
 - **Server Metadata Protection**
 - **Optional Server Brand Spoofing** — return e.g. "Vanilla" instead of "Paper"
 - **Optional Aggressive Mode** — block everything; see config below
+- **Probe Logging & Detection** — record probe attempts and alert admins when a player crosses a weighted-score threshold
+- **Honeypot Commands** — admin-defined fake commands; a single hit fires an immediate alert
 - **Folia-compatible**
 
 ## Configuration (`config.yml`)
@@ -137,6 +139,52 @@ hide-server-brand: true
 fake-server-brand: "vanilla"
 ```
 
+### Probe logging & detection
+
+PluginGuard can record probe attempts and alert online admins when a player shows
+a pattern of plugin-enumeration behavior. All I/O is dispatched asynchronously so
+the command hot path stays cheap, and per-player state is cleared on quit.
+
+```yaml
+logging:
+  # Append every probe attempt to plugins/PluginGuard/probes.log
+  log-to-file: false
+  # Also log every individual probe to the server console (noisy)
+  log-individual-probes: false
+
+  detection:
+    enabled: true
+    score-threshold: 5
+    window-seconds: 60
+    alert-cooldown-seconds: 300
+    notify-permission: "pluginguard.alerts"
+```
+
+Weights per probe category:
+
+| Category | Weight | Examples |
+| --- | --- | --- |
+| Honeypot | 5 | Anything listed under `honeypot-commands` (single hit triggers) |
+| High | 3 | `bukkit:foo`, `minecraft:foo`, `/icanhasbukkit` |
+| Medium | 2 | `/pl`, `/plugins`, `/ver`, `/version`, `/about` |
+| Low | 1 | `/lp`, `/we`, `/co`, `/mv`, `/dynmap`, ... (common plugins) |
+
+`/help` and `/?` are deliberately never tracked — too commonly legitimate.
+
+### Honeypot commands
+
+Fake commands no legitimate user would type. A single attempt is enough to fire
+the detector at the default threshold, so honeypots act as a near-zero-false-positive
+tripwire. Invent plausible-sounding names an attacker might try:
+
+```yaml
+honeypot-commands:
+  - "staffchat"
+  - "adminchat"
+  - "modchat"
+  - "opme"
+```
+
 ### Aggressive mode
 
 Blocks **all** plugin commands for players without `<command>.use` permission.
@@ -152,10 +200,8 @@ aggressive-mode: false
 - `/pluginguard reload` — reload config (requires `pluginguard.reload`)
 - `/pluginguard status` — show current protection status
 
-## Building
+## Permissions
 
-```
-./gradlew build
-```
-
-The shaded jar lands in `build/libs/PluginGuard-<version>.jar`.
+- `pluginguard.bypass` — see the real plugin list and bypass all hiding (default: op)
+- `pluginguard.reload` — reload PluginGuard configuration (default: op)
+- `pluginguard.alerts` — receive in-game probe-detector alerts (default: op)

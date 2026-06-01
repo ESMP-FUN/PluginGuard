@@ -5,7 +5,8 @@
 [SIZE=3][B]Minecraft 1.21.x  |  26.x.x  |  Paper  |  Purpur  |  Folia  |  Spigot[/B][/SIZE]
 [/CENTER]
 
-[HR][/HR]
+
+
 
 [SIZE=5][B]Why PluginGuard?[/B][/SIZE]
 
@@ -20,7 +21,8 @@ Knowing which plugins a server runs is the first step in attacking it. A player 
 [*]Server-list ping / MOTD protocol brand identification
 [/LIST]
 
-[HR][/HR]
+
+
 
 [SIZE=5][B]Features[/B][/SIZE]
 
@@ -38,11 +40,14 @@ Knowing which plugins a server runs is the first step in attacking it. A player 
 [*][B]Common Plugin Blocklist[/B] — [I]/essentials[/I], [I]/lp[/I], [I]/we[/I], [I]/co[/I], [I]/mv[/I], [I]/dynmap[/I], [I]/gp[/I] and friends all return "Unknown command" — denying the distinction attackers use to enumerate.
 [*][B]Server-Brand Spoofing[/B] — return [COLOR=#33aa33][I]vanilla[/I][/COLOR] (or anything you configure) in MOTD / server-list ping responses.
 [*][B]Aggressive Mode[/B] — block every plugin command by default; only players with explicit [I]<command>.use[/I] permission may use them.
-[*][B]Bypass Permission[/B] — staff with [I]pluginguard.bypass[/I] see the real server, untouched.
+[*][B]Probe Logging & Pattern Detection[/B] — record probe attempts and alert online admins when a player crosses a weighted-score threshold within a sliding window. Categories are weighted so legitimate [I]/help[/I] use is ignored but a [I]bukkit:[/I]-prefixed probe plus a couple of enumeration attempts trips the detector.
+[*][B]Honeypot Commands[/B] — list fake commands no legitimate user would ever type. A single hit fires an alert by itself — near-zero false-positive tripwire.
+[*][B]Bypass Permission[/B] — staff with [I]pluginguard.bypass[/I] see the real server, untouched, and never trigger detection.
 [*][B]Hot Reload[/B] — [I]/pluginguard reload[/I] swaps the live configuration atomically.
 [/LIST]
 
-[HR][/HR]
+
+
 
 [SIZE=5][B]Compatibility[/B][/SIZE]
 
@@ -54,20 +59,22 @@ Knowing which plugins a server runs is the first step in attacking it. A player 
 [*][B]Folia:[/B] fully supported, lock-free, no scheduler use
 [/LIST]
 
-[HR][/HR]
+
+
 
 [SIZE=5][B]Performance[/B][/SIZE]
 
 PluginGuard is built to be invisible to your TPS.
 
 [LIST]
-[*][B]Zero background threads, zero scheduled tasks[/B] — pure listener-driven.
+[*][B]Listener-driven[/B] — no background threads. Schedulers are only used on the cold path: probe-log file writes and admin alert broadcasts are dispatched off the calling region thread via Paper / Folia's async and global-region schedulers, so the event handlers themselves stay cheap.
 [*][B]Lock-free hot path[/B] — config is held in an immutable snapshot behind a volatile reference, accessed without contention from every Folia region thread.
 [*][B]Minimal per-command work[/B] — the command listener slices the base command by index and lowercases only that, so per-event CPU is bounded by the command name length, not the message length.
 [*][B]No runtime reflection[/B] — used only at startup to detect Paper vs. Spigot.
 [/LIST]
 
-[HR][/HR]
+
+
 
 [SIZE=5][B]Configuration[/B][/SIZE]
 
@@ -96,9 +103,36 @@ hide-server-brand: true
 fake-server-brand: "vanilla"
 
 aggressive-mode: false
+
+logging:
+  log-to-file: false
+  log-individual-probes: false
+  detection:
+    enabled: true
+    score-threshold: 5
+    window-seconds: 60
+    alert-cooldown-seconds: 300
+    notify-permission: "pluginguard.alerts"
+
+honeypot-commands:
+  - "staffchat"
+  - "adminchat"
+  - "modchat"
+  - "opme"
 [/CODE]
 
-[HR][/HR]
+[SIZE=5][B]Probe-detector weights[/B][/SIZE]
+
+[LIST]
+[*][B]Honeypot[/B] (weight 5) — anything listed under [I]honeypot-commands[/I]; single hit triggers
+[*][B]High[/B] (weight 3) — [I]bukkit:[/I] / [I]minecraft:[/I] prefixed probes, [I]/icanhasbukkit[/I]
+[*][B]Medium[/B] (weight 2) — [I]/pl[/I], [I]/plugins[/I], [I]/ver[/I], [I]/version[/I], [I]/about[/I]
+[*][B]Low[/B] (weight 1) — [I]/lp[/I], [I]/we[/I], [I]/co[/I], [I]/mv[/I], [I]/dynmap[/I], ...
+[*][I]/help[/I] and [I]/?[/I] are deliberately never tracked — too commonly legitimate.
+[/LIST]
+
+
+
 
 [SIZE=5][B]Commands[/B][/SIZE]
 
@@ -113,9 +147,11 @@ aggressive-mode: false
 [LIST]
 [*][B]pluginguard.bypass[/B] — see the real plugin list and bypass all hiding (default: op)
 [*][B]pluginguard.reload[/B] — reload PluginGuard configuration (default: op)
+[*][B]pluginguard.alerts[/B] — receive in-game probe-detector alerts (default: op)
 [/LIST]
 
-[HR][/HR]
+
+
 
 [SIZE=5][B]Installation[/B][/SIZE]
 
@@ -127,7 +163,8 @@ aggressive-mode: false
 
 No external dependencies. No database. No web dashboard.
 
-[HR][/HR]
+
+
 
 [CENTER]
 [SIZE=4][B]Source & support[/B][/SIZE]
