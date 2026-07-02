@@ -27,6 +27,11 @@ dependencies {
         if (is26) "io.papermc.paper:paper-api:26.1.2.build.66-stable"
         else "io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT"
     )
+    // Netty types for the in-game brand spoofer's pipeline handler. compileOnly — the server ships
+    // Netty at runtime, so nothing is added to the jar. All server internals are reached via
+    // reflection, so no paperweight/dev-bundle is needed and this still builds on plain paper-api.
+    compileOnly("io.netty:netty-transport:4.1.101.Final")
+    compileOnly("io.netty:netty-common:4.1.101.Final")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
 }
 

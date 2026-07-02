@@ -20,7 +20,7 @@ Spigot/Bukkit will load the plugin but server-brand spoofing is disabled (Paper-
 - **Advanced Protection**
 - **Custom Protection**
 - **Server Metadata Protection**
-- **Optional Server Brand Spoofing** — return e.g. "Vanilla" instead of "Paper"
+- **Optional Server Brand Spoofing** — return e.g. "Vanilla" instead of "Paper", in both the server-list ping *and* the in-game F3 / `minecraft:brand` channel
 - **Optional Aggressive Mode** — block everything; see config below
 - **Probe Logging & Detection** — record probe attempts and alert admins when a player crosses a weighted-score threshold
 - **Honeypot Commands** — admin-defined fake commands; a single hit fires an immediate alert
@@ -143,7 +143,9 @@ block-common-plugin-commands: true
 
 ### Server-metadata protection
 
-Hide server software in query responses and MOTD ping (Paper/Folia only):
+Hide server software in the server-list ping/MOTD **and** the in-game
+`minecraft:brand` channel that the F3 screen and client mods read (Paper/Folia only;
+on Spigot this degrades to ping-only):
 
 ```yaml
 hide-server-brand: true

@@ -18,6 +18,7 @@ Knowing which plugins a server runs is the first step in attacking it. A player 
 [*]Tab-completion enumeration via [I]/[tab][/I]
 [*]Permission-error vs unknown-command distinction (used to enumerate plugin existence)
 [*]Server-list ping / MOTD protocol brand identification
+[*]In-game server-brand identification (F3 debug screen / [I]minecraft:brand[/I] channel)
 [/LIST]
 
 
@@ -37,7 +38,7 @@ Knowing which plugins a server runs is the first step in attacking it. A player 
 [*][B]bukkit: / minecraft: Prefix Protection[/B] — block or redirect prefixed-command probes.
 [*][B]Tab-Completion Hardening[/B] — strip plugin commands from autocomplete suggestions.
 [*][B]Common Plugin Blocklist[/B] — [I]/essentials[/I], [I]/lp[/I], [I]/we[/I], [I]/co[/I], [I]/mv[/I], [I]/dynmap[/I], [I]/gp[/I] and friends all return "Unknown command" — denying the distinction attackers use to enumerate.
-[*][B]Server-Brand Spoofing[/B] — return [COLOR=#33aa33][I]vanilla[/I][/COLOR] (or anything you configure) in MOTD / server-list ping responses.
+[*][B]Server-Brand Spoofing[/B] — return [COLOR=#33aa33][I]vanilla[/I][/COLOR] (or anything you configure) in both the MOTD / server-list ping [B]and[/B] the in-game [I]minecraft:brand[/I] channel that the F3 debug screen and "server brand" client mods read. Most hiders only cover the ping.
 [*][B]Aggressive Mode[/B] — block every plugin command by default; only players with explicit [I]<command>.use[/I] permission may use them.
 [*][B]Probe Logging & Pattern Detection[/B] — record probe attempts and alert online admins when a player crosses a weighted-score threshold within a sliding window. Categories are weighted so legitimate [I]/help[/I] use is ignored but a [I]bukkit:[/I]-prefixed probe plus a couple of enumeration attempts trips the detector.
 [*][B]Honeypot Commands[/B] — list fake commands no legitimate user would ever type. A single hit fires an alert by itself — near-zero false-positive tripwire.

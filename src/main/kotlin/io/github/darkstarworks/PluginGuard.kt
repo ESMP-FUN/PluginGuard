@@ -49,6 +49,7 @@ class PluginGuard : JavaPlugin(), Listener {
     private lateinit var settings: Settings
 
     private val detector = ProbeDetector(this)
+    private val brandSpoofer = BrandSpoofer(this)
 
     fun currentSettings(): Settings = settings
 
@@ -57,11 +58,17 @@ class PluginGuard : JavaPlugin(), Listener {
         settings = loadSettings()
         server.pluginManager.registerEvents(this, this)
         registerPaperListeners()
+        // In-game brand spoofing (F3 / client "server brand" mods) — the ping-only PingListener
+        // can't reach it. Injects at the Netty layer; the handler consults hideServerBrand live at
+        // write time, so we install once here and a later /pluginguard reload can toggle it freely.
+        // Fails open on servers that don't expose these internals (e.g. Spigot's remapped classes).
+        brandSpoofer.enable()
         logger.info("PluginGuard enabled - protecting ${server.pluginManager.plugins.size} plugins")
     }
 
     override fun onDisable() {
         detector.forgetAll()
+        brandSpoofer.disable()
     }
 
     private fun registerPaperListeners() {
@@ -121,9 +128,13 @@ class PluginGuard : JavaPlugin(), Listener {
         // Extract just the base command without allocating a lowercased copy of the whole message
         // or splitting on spaces. Hot path: runs on every command a player issues.
         val msg = event.message
-        val start = if (msg.startsWith('/')) 1 else 0
-        val spaceIdx = msg.indexOf(' ', start)
-        val end = if (spaceIdx == -1) msg.length else spaceIdx
+        var start = if (msg.startsWith('/')) 1 else 0
+        // Skip any whitespace between the slash and the command. A prober can pad "/  plugins" or
+        // "/\tplugins"; some dispatchers tolerate that and route it while a naive slice would miss
+        // the token entirely. Mirror the dispatcher: find the first non-whitespace char.
+        while (start < msg.length && msg[start].isWhitespace()) start++
+        var end = start
+        while (end < msg.length && !msg[end].isWhitespace()) end++
         if (start >= end) return
         val baseCommand = msg.substring(start, end).lowercase()
 

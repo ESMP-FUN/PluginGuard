@@ -2,13 +2,21 @@
 
 **Stop players from fingerprinting your server's plugin list.**
 
-PluginGuard is a lightweight, drop-in protection layer that intercepts the commands and protocol channels players use to discover which plugins you're running — `/plugins`, `/pl`, `/ver`, `bukkit:` and `minecraft:` prefixed commands, tab-completion probing, and server-list pings — and replaces the response with whatever you want them to see.
+PluginGuard is a lightweight, drop-in protection layer that intercepts the commands and protocol channels used by players to discover which plugins you're running. 
+Covers: `/plugins`, `/pl`, `/ver`, `bukkit:` and `minecraft:` prefixed commands, namespaced commands, tab-completion probing, server-list pings, and the in-game server brand (F3). It replaces the response with whatever you want people to see.
 
 ---
 
 ## Why it exists
 
-Knowing which plugins a server runs is the first step in attacking it. A player who knows you run a specific economy plugin, an outdated permissions plugin, or a known-vulnerable utility can target known CVEs or exploit-known quirks. Default Bukkit gives that information away to anyone who types `/pl`.
+Knowing which plugins a server runs is the first step in attacking it. 
+If a player knows you run:
+- a specific economy plugin, 
+- an outdated permissions plugin, 
+- or a known-vulnerable utility 
+
+They can target known CVEs or exploit known quirks. 
+Default Bukkit gives that information away to anyone who types `/pl`.
 
 PluginGuard closes every public surface that leaks plugin presence.
 
@@ -19,17 +27,17 @@ PluginGuard closes every public surface that leaks plugin presence.
 - **Hide Mode** — choose how the server responds to probes:
   - `unknown-command` — indistinguishable from a typo (most realistic)
   - `empty` — `Plugins (0):`
-  - `fake-list` — return a list of plausible-looking decoy plugins
-  - `permission-denied` — pretend the player lacks permission
-- **Plugin spoofing** — return any configurable list of fake plugins. Make a hardened production server look like vanilla Paper with two utility plugins.
+  - `fake-list` — returns a list of plausible-looking decoy plugins
+  - `permission-denied` — pretends the player lacks permission
+- **Plugin spoofing** — returns any configurable list of fake plugins — Makes a hardened production server look like vanilla Paper with e.g. just two utility plugins.
 - **`bukkit:` / `minecraft:` prefix protection** — block or redirect prefixed-command probing.
 - **Tab-completion hardening** — strip plugin commands from `/[tab]` so they can't be discovered by autocomplete.
-- **Common-plugin command blocklist** — `/essentials`, `/lp`, `/we`, `/co`, `/mv`, `/dynmap`, `/gp`, and friends all return "Unknown command" instead of "You don't have permission" — denying the existence/permission distinction attackers use to enumerate.
-- **Server-brand spoofing** — return `vanilla` (or anything you configure) in MOTD / server-list ping protocol responses.
-- **Aggressive mode** — block every plugin command by default; only players with the explicit `<command>.use` permission can use them.
-- **Probe logging & pattern detection** — record probe attempts and alert online admins when a player crosses a weighted-score threshold within a sliding window. Categories are weighted (high / medium / low) so a single `/help` does nothing but a `bukkit:`-prefixed probe plus two enumeration attempts will trip the detector.
-- **Honeypot commands** — list fake commands that no legitimate user would ever type. A single hit on a honeypot is enough to fire an alert — by definition, near-zero false positive rate.
-- **Bypass permission** — staff with `pluginguard.bypass` see the real server, untouched, and never trigger detection.
+- **Common-plugin command blocklist** — `/essentials`, `/lp`, `/we`, `/co`, `/mv`, `/dynmap`, `/gp`, and more — all return "Unknown command" instead of "You don't have permission" — denying the existence/permission distinction that attackers use to enumerate.
+- **Server-brand spoofing** — returns `vanilla` (or anything you configure) in both the MOTD / server-list ping *and* the in-game `minecraft:brand` channel that the F3 debug screen and "server brand" client mods read. Most hiders only cover the ping; PluginGuard closes both.
+- **Aggressive mode** — blocks every plugin command by default; only players with the explicit `<command>.use` permission can use them.
+- **Probe logging & pattern detection** — records probe attempts and alert online admins when a player crosses a weighted-score threshold. Categories are weighted (high / medium / low) so a single `/help` does nothing but a `bukkit:`-prefixed probe plus two enumeration attempts will trip the detector immediately.
+- **Honeypot commands** — list fake commands that no legitimate user would ever type. A single hit on a honeypot is enough to fire an alert — by definition results in a near-zero false positive rate.
+- **Bypass permission** — staff with `pluginguard.bypass` see the real plugins and server brand, untouched, and never trigger detection.
 - **Hot reload** — `/pluginguard reload` swaps the live config atomically.
 
 ---
@@ -41,7 +49,7 @@ PluginGuard closes every public surface that leaks plugin presence.
 | Minecraft | **1.21.x** and **26.x.x** |
 | Java | **21+** (1.21.x) / **25+** (26.x.x) |
 | Server software | Paper, Purpur, Pufferfish, Folia, Leaf, and other Paper forks |
-| Spigot / CraftBukkit | Loads cleanly; server-brand spoofing is disabled (Paper-only API) |
+| Spigot / CraftBukkit | Loads cleanly for plugins, but server-brand spoofing is disabled (Paper-only API) |
 | Folia | Supported — declared via `folia-supported: true`, fully lock-free, no scheduler use |
 
 ---
@@ -53,7 +61,7 @@ PluginGuard is built to be invisible to your TPS.
 - **Listener-driven** — no background threads. Schedulers are only touched on the cold path: file appends to `probes.log` and admin alerts are dispatched off the calling region thread via Paper / Folia's async and global-region schedulers, so the event handlers themselves stay cheap.
 - **Lock-free hot path** — config is held in an immutable snapshot behind a `@Volatile` reference; readers on every Folia region thread access it without contention.
 - **Minimal per-command work** — the command-preprocess listener slices the base command token by index and lowercases only that, so per-event CPU is bounded by the command name length, not the message length.
-- **No reflection at runtime** — only at startup, to detect Paper vs. Spigot.
+- **Reflection only on cold paths** — Paper-vs-Spigot detection at startup, the brand-spoofer's Netty injection at startup, and a tiny once-per-connection rewrite of the `minecraft:brand` packet as each player logs in. The per-command hot path uses no reflection at all.
 
 ---
 

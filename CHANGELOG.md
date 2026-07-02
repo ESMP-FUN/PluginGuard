@@ -10,6 +10,18 @@ All notable changes to PluginGuard will be documented in this file.
     Paper API 1.21.11, Java 21 bytecode - for 1.21.x servers).
   - `./gradlew shadowJar -Pmc=26` -> `PluginGuard-1.2.0-mc26.jar` (compiled against
     Paper API 26.1.2, Java 25 bytecode - for 26.x servers).
+- New: in-game server-brand spoofing. `PaperServerListPingEvent` only covered the
+  server-list ping; the brand shown in the F3 debug screen (and read by "server
+  brand" client mods) travels separately in the `minecraft:brand` plugin-message
+  channel, sent during the configuration phase before a player fully joins.
+  PluginGuard now injects a Netty pipeline handler at the server-channel level
+  (TinyProtocol-style, before login) and rewrites that payload to `fake-server-brand`.
+  Reuses the existing `hide-server-brand` toggle. Reflection on plain paper-api, no
+  ProtocolLib/paperweight; fails open (Spigot's remapped internals degrade to
+  ping-only spoofing, as before).
+- Hardened the command-preprocess parser: it now skips any whitespace between the
+  slash and the command token before matching (`/  plugins`, `/<tab>plugins`), so a
+  padded command can't slip past the guard on a dispatcher that tolerates it.
 - New: `block-namespaced-commands` (default: on). Blocks every namespaced command
   (`/essentials:home`, `/luckperms:lp`, ...) and strips namespaced entries from tab
   completion - the namespace before the colon is the plugin's name, so a single

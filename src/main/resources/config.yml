@@ -93,8 +93,12 @@ block-common-plugin-commands: true
 
 # ===== SERVER METADATA PROTECTION =====
 
-# Hide server software in query responses and MOTD ping
-# Prevents protocol-level discovery
+# Hide server software everywhere it leaks over the protocol:
+#  - the server-list ping / MOTD screen, AND
+#  - the in-game "minecraft:brand" channel that the F3 debug screen and
+#    "server brand" client mods read after a player joins.
+# Most plugins only cover the ping; PluginGuard spoofs both to the value below.
+# (In-game spoofing needs Paper internals; on Spigot it degrades to ping-only.)
 hide-server-brand: true
 
 # Fake server brand to display (e.g., "vanilla", "1.21.1", "custom")
