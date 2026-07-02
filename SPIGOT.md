@@ -1,88 +1,72 @@
 [CENTER]
 [SIZE=7][B]PluginGuard[/B][/SIZE]
-[SIZE=4][COLOR=#888888]Stop players from fingerprinting your server's plugin list.[/COLOR][/SIZE]
+[SIZE=4][COLOR=#888888]Stop players from seeing which plugins your server runs.[/COLOR][/SIZE]
 
-[SIZE=3][B]Minecraft 1.21.x  |  26.x.x  |  Paper  |  Purpur  |  Folia  |  Spigot[/B][/SIZE]
+[SIZE=3][B]Minecraft 1.21.x  |  26.x  |  Paper  |  Purpur  |  Folia  |  Spigot[/B][/SIZE]
 [/CENTER]
 
 
 
-[SIZE=5][B]Why PluginGuard?[/B][/SIZE]
+Type [COLOR=#cc6633][I]/pl[/I][/COLOR] on most servers and you get the full plugin list. That list is a gift to anyone looking for a way in — a known-buggy plugin, an outdated version, a command to abuse. PluginGuard shuts every door players use to find that out, and lets you show them whatever you like instead.
 
-Knowing which plugins a server runs is the first step in attacking it. A player who knows you run a specific economy plugin, an outdated permissions plugin, or a known-vulnerable utility can target published CVEs or exploit known quirks. Default Bukkit gives that information away to anyone who types [COLOR=#cc6633][I]/pl[/I][/COLOR].
+Lightweight, no dependencies, no database. Drop it in and you're protected.
 
-[B]PluginGuard closes every public surface that leaks plugin presence:[/B]
+
+
+[SPOILER=What it protects against]
+Players have a lot of little tricks for figuring out your setup. PluginGuard blocks all of them:
 [LIST]
 [*][I]/plugins[/I], [I]/pl[/I], [I]/ver[/I], [I]/version[/I], [I]/about[/I], [I]/icanhasbukkit[/I]
-[*][I]bukkit:[/I] and [I]minecraft:[/I] prefixed command probing
-[*]Tab-completion enumeration via [I]/[tab][/I]
-[*]Permission-error vs unknown-command distinction (used to enumerate plugin existence)
-[*]Server-list ping / MOTD protocol brand identification
-[*]In-game server-brand identification (F3 debug screen / [I]minecraft:brand[/I] channel)
+[*][I]bukkit:[/I] and [I]minecraft:[/I] prefixed commands (e.g. [I]/bukkit:plugins[/I])
+[*]Namespaced commands like [I]/essentials:home[/I] — the part before the colon [B]is[/B] the plugin name
+[*]Tab-completion probing (pressing TAB to reveal commands)
+[*]The "unknown command" vs "you don't have permission" difference, which quietly confirms a plugin exists
+[*]The server brand in the server-list ping [B]and[/B] in the in-game F3 debug screen
 [/LIST]
+[/SPOILER]
 
-
-
-
-[SIZE=5][B]Features[/B][/SIZE]
-
+[SPOILER=Features]
 [LIST]
-[*][B]Hide Mode[/B] — choose how the server responds to probes:
-  [LIST]
-  [*][B]unknown-command[/B] — indistinguishable from a typo (most realistic)
-  [*][B]empty[/B] — returns [I]Plugins (0):[/I]
-  [*][B]fake-list[/B] — return a configurable list of plausible-looking decoys
-  [*][B]permission-denied[/B] — pretend the player simply lacks permission
-  [/LIST]
-[*][B]Plugin Spoofing[/B] — make a hardened production server look like vanilla Paper with two utility plugins.
-[*][B]bukkit: / minecraft: Prefix Protection[/B] — block or redirect prefixed-command probes.
-[*][B]Tab-Completion Hardening[/B] — strip plugin commands from autocomplete suggestions.
-[*][B]Common Plugin Blocklist[/B] — [I]/essentials[/I], [I]/lp[/I], [I]/we[/I], [I]/co[/I], [I]/mv[/I], [I]/dynmap[/I], [I]/gp[/I] and friends all return "Unknown command" — denying the distinction attackers use to enumerate.
-[*][B]Server-Brand Spoofing[/B] — return [COLOR=#33aa33][I]vanilla[/I][/COLOR] (or anything you configure) in both the MOTD / server-list ping [B]and[/B] the in-game [I]minecraft:brand[/I] channel that the F3 debug screen and "server brand" client mods read. Most hiders only cover the ping.
-[*][B]Aggressive Mode[/B] — block every plugin command by default; only players with explicit [I]<command>.use[/I] permission may use them.
-[*][B]Probe Logging & Pattern Detection[/B] — record probe attempts and alert online admins when a player crosses a weighted-score threshold within a sliding window. Categories are weighted so legitimate [I]/help[/I] use is ignored but a [I]bukkit:[/I]-prefixed probe plus a couple of enumeration attempts trips the detector.
-[*][B]Honeypot Commands[/B] — list fake commands no legitimate user would ever type. A single hit fires an alert by itself — near-zero false-positive tripwire.
-[*][B]Bypass Permission[/B] — staff with [I]pluginguard.bypass[/I] see the real server, untouched, and never trigger detection.
-[*][B]Hot Reload[/B] — [I]/pluginguard reload[/I] swaps the live configuration atomically.
+[*][B]Choose what players see.[/B] Reply to probes with a fake "unknown command", an empty list, a list of convincing decoy plugins, or a "no permission" message — your call.
+[*][B]Fake plugin list.[/B] Make a heavily-modded server look like plain vanilla Paper with a couple of harmless utilities.
+[*][B]Command blocking.[/B] Common plugin commands ([I]/essentials[/I], [I]/lp[/I], [I]/we[/I], [I]/co[/I], [I]/mv[/I], [I]/dynmap[/I], and more) all just return "Unknown command".
+[*][B]Tab-completion cleanup.[/B] Plugin commands never show up in autocomplete.
+[*][B]Server-brand spoofing.[/B] Show [COLOR=#33aa33][I]vanilla[/I][/COLOR] (or anything you want) both in the server list and in the F3 screen. Most similar plugins only cover the server list — PluginGuard covers both.
+[*][B]Aggressive mode.[/B] Optionally hide [I]every[/I] plugin command unless a player has explicit permission for it.
+[*][B]Probe detection & alerts.[/B] PluginGuard notices when someone is poking around and alerts your staff in-game. Casual [I]/help[/I] use is ignored; a real probing pattern trips it fast.
+[*][B]Honeypot commands.[/B] List fake commands no normal player would ever type. One hit and you know exactly who's snooping.
+[*][B]Staff bypass.[/B] Anyone with the bypass permission sees the real server and never trips an alert.
+[*][B]Instant reload.[/B] Change the config and run [I]/pluginguard reload[/I] — no restart.
 [/LIST]
+[/SPOILER]
 
-
-
-
-[SIZE=5][B]Compatibility[/B][/SIZE]
-
+[SPOILER=Compatibility]
 [LIST]
-[*][B]Minecraft:[/B] 1.21.x and 26.x.x
-[*][B]Java:[/B] 21+ (1.21.x) / 25+ (26.x.x)
-[*][B]Recommended:[/B] Paper, Purpur, Pufferfish, Folia, Leaf and other Paper forks
-[*][B]Spigot / CraftBukkit:[/B] loads cleanly — server-brand spoofing is disabled because the underlying event is Paper-only
-[*][B]Folia:[/B] fully supported, lock-free, no scheduler use
+[*][B]Minecraft:[/B] 1.21.x and 26.x
+[*][B]Java:[/B] 21+ (for 1.21.x) / 25+ (for 26.x)
+[*][B]Best on:[/B] Paper, Purpur, Pufferfish, Folia, Leaf, and other Paper forks
+[*][B]Spigot / CraftBukkit:[/B] works fine — only the server-brand spoofing turns off (it needs Paper)
+[*][B]Folia:[/B] fully supported
 [/LIST]
+Two downloads are provided: [B]PluginGuard-<version>.jar[/B] for Minecraft 1.21.x, and [B]PluginGuard-<version>-mc26.jar[/B] for 26.x. Grab the one that matches your server.
+[/SPOILER]
 
-
-
-
-[SIZE=5][B]Performance[/B][/SIZE]
-
-PluginGuard is built to be invisible to your TPS.
-
-[LIST]
-[*][B]Listener-driven[/B] — no background threads. Schedulers are only used on the cold path: probe-log file writes and admin alert broadcasts are dispatched off the calling region thread via Paper / Folia's async and global-region schedulers, so the event handlers themselves stay cheap.
-[*][B]Lock-free hot path[/B] — config is held in an immutable snapshot behind a volatile reference, accessed without contention from every Folia region thread.
-[*][B]Minimal per-command work[/B] — the command listener slices the base command by index and lowercases only that, so per-event CPU is bounded by the command name length, not the message length.
-[*][B]No runtime reflection[/B] — used only at startup to detect Paper vs. Spigot.
+[SPOILER=Installation]
+[LIST=1]
+[*]Download the jar that matches your Minecraft version and drop it in your [I]plugins/[/I] folder.
+[*]Start the server once — this creates [I]plugins/PluginGuard/config.yml[/I].
+[*]Edit the config however you like, then run [I]/pluginguard reload[/I].
 [/LIST]
+That's it. No external dependencies, no database, no web dashboard.
+[/SPOILER]
 
-
-
-
-[SIZE=5][B]Configuration[/B][/SIZE]
-
-The full [I]config.yml[/I] ships with inline comments explaining every option. A taste:
-
+[SPOILER=Configuration example]
+Every option is explained with inline comments in the generated [I]config.yml[/I]. Here's the gist:
 [CODE=yaml]
+# How to respond when someone tries to list your plugins.
 hide-mode: "unknown-command"
 
+# Shown when hide-mode is "fake-list".
 fake-plugins:
   - "ServerCore"
   - "WorldManager"
@@ -115,55 +99,33 @@ logging:
     alert-cooldown-seconds: 300
     notify-permission: "pluginguard.alerts"
 
+# Fake commands no real player would type. A single hit fires an alert.
 honeypot-commands:
   - "staffchat"
   - "adminchat"
   - "modchat"
   - "opme"
 [/CODE]
+[/SPOILER]
 
-[SIZE=5][B]Probe-detector weights[/B][/SIZE]
-
+[SPOILER=Commands & permissions]
 [LIST]
-[*][B]Honeypot[/B] (weight 5) — anything listed under [I]honeypot-commands[/I]; single hit triggers
-[*][B]High[/B] (weight 3) — [I]bukkit:[/I] / [I]minecraft:[/I] prefixed probes, [I]/icanhasbukkit[/I]
-[*][B]Medium[/B] (weight 2) — [I]/pl[/I], [I]/plugins[/I], [I]/ver[/I], [I]/version[/I], [I]/about[/I]
-[*][B]Low[/B] (weight 1) — [I]/lp[/I], [I]/we[/I], [I]/co[/I], [I]/mv[/I], [I]/dynmap[/I], ...
-[*][I]/help[/I] and [I]/?[/I] are deliberately never tracked — too commonly legitimate.
-[/LIST]
-
-
-
-
-[SIZE=5][B]Commands[/B][/SIZE]
-
-[LIST]
-[*][B]/pluginguard reload[/B] — atomically reload the configuration
-[*][B]/pluginguard status[/B] — show current protection status
+[*][B]/pluginguard reload[/B] — reload the config on the fly ([I]pluginguard.reload[/I], op)
+[*][B]/pluginguard status[/B] — show current protection status ([I]pluginguard.reload[/I], op)
 [*]Alias: [B]/pg[/B]
 [/LIST]
-
-[SIZE=5][B]Permissions[/B][/SIZE]
-
 [LIST]
-[*][B]pluginguard.bypass[/B] — see the real plugin list and bypass all hiding (default: op)
-[*][B]pluginguard.reload[/B] — reload PluginGuard configuration (default: op)
-[*][B]pluginguard.alerts[/B] — receive in-game probe-detector alerts (default: op)
+[*][B]pluginguard.bypass[/B] — see the real plugins and server brand; never tracked (default: op)
+[*][B]pluginguard.reload[/B] — reload the configuration (default: op)
+[*][B]pluginguard.alerts[/B] — get in-game alerts when someone is probing (default: op)
 [/LIST]
+[/SPOILER]
 
 
 
+[SIZE=5][B]Pairs perfectly with AntiDupePro[/B][/SIZE]
 
-[SIZE=5][B]Installation[/B][/SIZE]
-
-[LIST=1]
-[*]Pick your jar: [B]PluginGuard-<version>.jar[/B] for Minecraft 1.21.x, [B]PluginGuard-<version>-mc26.jar[/B] for 26.x. Drop it into your [I]plugins/[/I] folder.
-[*]Start the server once to generate [I]plugins/PluginGuard/config.yml[/I].
-[*]Edit the config to taste and run [I]/pluginguard reload[/I].
-[/LIST]
-
-No external dependencies. No database. No web dashboard.
-
+Running PluginGuard? Take a look at [URL=https://www.spigotmc.org/resources/antidupepro.135719/][B]AntiDupePro[/B][/URL] too — a chain-of-custody item-flow auditor that catches item duplication. It benefits directly from PluginGuard hiding [I]/plugin[/I] and friends, so the two make a great team.
 
 
 
