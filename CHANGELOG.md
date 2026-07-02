@@ -2,6 +2,35 @@
 
 All notable changes to PluginGuard will be documented in this file.
 
+## [1.2.0] - 2026-07-02
+
+- Real Minecraft 26.x support: one codebase now builds two jars, selected with
+  `-Pmc=<line>` (mirrors AntiDupePro's release model).
+  - `./gradlew shadowJar -Pmc=21` -> `PluginGuard-1.2.0.jar` (compiled against
+    Paper API 1.21.11, Java 21 bytecode - for 1.21.x servers).
+  - `./gradlew shadowJar -Pmc=26` -> `PluginGuard-1.2.0-mc26.jar` (compiled against
+    Paper API 26.1.2, Java 25 bytecode - for 26.x servers).
+- New: `block-namespaced-commands` (default: on). Blocks every namespaced command
+  (`/essentials:home`, `/luckperms:lp`, ...) and strips namespaced entries from tab
+  completion - the namespace before the colon is the plugin's name, so a single
+  namespaced command confirmed a plugin's presence even with its bare alias hidden.
+  Namespaced probes are recorded at high weight (3) by the detector.
+- Fixed: `block-bukkit-commands` documented that it blocks `minecraft:`-prefixed
+  commands but only ever blocked `bukkit:`. It now blocks both, as documented.
+- Fixed: `block-unknown-commands` was read from the config but never enforced.
+  It now works: when a player runs a plugin command they lack permission for,
+  PluginGuard cancels it and answers with the vanilla unknown-command line before
+  the plugin can leak its existence through a "You don't have permission" reply.
+  (Applies to commands that declare a permission; not tracked by the detector,
+  since legitimate players hit permission walls routinely.)
+- Fixed: probe-detector alert details (recent labels, window age) are now
+  snapshotted inside the tracker lock, closing a small race where a concurrent
+  probe from the same player could skew the alert message.
+- `/pluginguard` now tab-completes its subcommands (`reload`, `status`).
+- `/version` spoof no longer wraps the fake brand in literal escaped quotes.
+- Build: Kotlin 2.3.20; plain (non-shaded) jar task disabled - only the shaded
+  jar is ever released.
+
 ## [1.1.0] - 2026-06-01
 
 - Probe logging and pattern detection. PluginGuard now records when players try

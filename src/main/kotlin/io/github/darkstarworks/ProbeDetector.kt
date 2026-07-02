@@ -94,6 +94,8 @@ class ProbeDetector(private val plugin: PluginGuard) {
         val windowMs = s.detectionWindowSeconds * 1000L
         val cooldownMs = s.detectionAlertCooldownSeconds * 1000L
 
+        var labelsSnapshot: List<String> = emptyList()
+        var ageSec = 0
         val (score, triggered) = synchronized(tracker) {
             // Prune expired hits.
             val cutoff = now - windowMs
@@ -108,13 +110,17 @@ class ProbeDetector(private val plugin: PluginGuard) {
             val total = tracker.hits.sumOf { it.weight }
             val fire = total >= s.detectionScoreThreshold &&
                     (tracker.lastAlertMs == 0L || now - tracker.lastAlertMs >= cooldownMs)
-            if (fire) tracker.lastAlertMs = now
+            if (fire) {
+                tracker.lastAlertMs = now
+                // Snapshot alert details while still holding the lock — reading the deques
+                // afterwards would race with concurrent record() calls for the same player.
+                labelsSnapshot = tracker.recentLabels.toList()
+                ageSec = ((now - (tracker.hits.peekFirst()?.timestampMs ?: now)) / 1000L).toInt()
+            }
             total to fire
         }
 
         if (triggered) {
-            val labelsSnapshot: List<String> = synchronized(tracker) { tracker.recentLabels.toList() }
-            val ageSec = ((now - (tracker.hits.peekFirst()?.timestampMs ?: now)) / 1000L).toInt()
             dispatchAlert(player, score, ageSec, labelsSnapshot, s.notifyPermission)
         }
     }

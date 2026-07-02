@@ -40,6 +40,12 @@ protected-commands:
 # Block all bukkit: and minecraft: prefixed commands (prevents probing)
 block-bukkit-commands: true
 
+# Block ALL namespaced commands (e.g. /essentials:home, /luckperms:lp).
+# The namespace before the colon is the plugin's name, so a single namespaced
+# command confirms a plugin exists even when its bare alias is hidden.
+# Also strips namespaced entries from tab completion.
+block-namespaced-commands: true
+
 # Redirect bukkit: commands to show spoofed list instead of blocking
 # Only works if block-bukkit-commands is true
 redirect-bukkit-commands: false
@@ -52,9 +58,11 @@ hide-tab-completion: true
 
 # ===== ADVANCED PROTECTION =====
 
-# Block unknown commands with permission errors
-# Returns "Unknown command" even if the player lacks permission
-# Prevents probing for plugin existence via permission responses
+# Hide permission-gated plugin commands behind "Unknown command"
+# When a player runs a plugin command they lack permission for, the plugin's own
+# "You don't have permission" reply would confirm the plugin exists. This option
+# answers with the vanilla unknown-command line instead, before the plugin responds.
+# (Only works for commands that declare a permission in their plugin.yml.)
 block-unknown-commands: true
 
 # Common plugin commands to block (case-insensitive)

@@ -32,6 +32,7 @@ class PluginGuard : JavaPlugin(), Listener {
         val blockUnknownCommands: Boolean,
         val hideServerBrand: Boolean,
         val blockCommonPluginCommands: Boolean,
+        val blockNamespacedCommands: Boolean,
         val aggressiveMode: Boolean,
         // Logging / detection
         val loggingEnabled: Boolean,
@@ -93,6 +94,7 @@ class PluginGuard : JavaPlugin(), Listener {
             blockUnknownCommands = config.getBoolean("block-unknown-commands", true),
             hideServerBrand = config.getBoolean("hide-server-brand", true),
             blockCommonPluginCommands = config.getBoolean("block-common-plugin-commands", true),
+            blockNamespacedCommands = config.getBoolean("block-namespaced-commands", true),
             aggressiveMode = config.getBoolean("aggressive-mode", false),
             loggingEnabled = config.getBoolean("logging.enabled", true).let {
                 // logging section is implicitly enabled if any sub-toggle is on
@@ -156,7 +158,14 @@ class PluginGuard : JavaPlugin(), Listener {
                     detector.record(player, cat, "/$baseCommand")
                 }
             }
-            baseCommand.startsWith("bukkit:") && s.blockBukkitCommands -> {
+            (baseCommand.startsWith("bukkit:") || baseCommand.startsWith("minecraft:")) && s.blockBukkitCommands -> {
+                event.isCancelled = true
+                sendUnknownCommand(player)
+                detector.record(player, ProbeDetector.Category.HIGH, baseCommand)
+            }
+            // A namespaced command like /essentials:home confirms the plugin exists even when the
+            // bare alias is blocked — the namespace IS the plugin name. Block every namespace.
+            s.blockNamespacedCommands && ':' in baseCommand -> {
                 event.isCancelled = true
                 sendUnknownCommand(player)
                 detector.record(player, ProbeDetector.Category.HIGH, baseCommand)
@@ -168,6 +177,17 @@ class PluginGuard : JavaPlugin(), Listener {
             }
             s.aggressiveMode && !player.hasPermission("$baseCommand.use") -> {
                 if (server.getPluginCommand(baseCommand) != null) {
+                    event.isCancelled = true
+                    sendUnknownCommand(player)
+                }
+            }
+            // A plugin's own "You don't have permission" reply confirms the plugin exists.
+            // If the player can't run the command anyway, answer with the vanilla unknown-command
+            // line before the plugin gets a chance to leak itself. Not tracked by the detector:
+            // legitimate players hit permission walls all the time.
+            s.blockUnknownCommands -> {
+                val cmd = server.getPluginCommand(baseCommand)
+                if (cmd != null && cmd.plugin != this && !cmd.testPermissionSilent(player)) {
                     event.isCancelled = true
                     sendUnknownCommand(player)
                 }
@@ -190,7 +210,10 @@ class PluginGuard : JavaPlugin(), Listener {
 
             cleanCommand in s.protectedCommands ||
                     (cleanCommand in s.commonPluginCommands && s.blockCommonPluginCommands) ||
-                    (s.blockBukkitCommands && command.startsWith("bukkit:"))
+                    (s.blockBukkitCommands && (command.startsWith("bukkit:") || command.startsWith("minecraft:"))) ||
+                    // Namespaced completions (essentials:home, luckperms:lp, ...) spell out the
+                    // plugin list by themselves — strip every namespaced entry from suggestions.
+                    (s.blockNamespacedCommands && ':' in command)
         }
 
         if (s.aggressiveMode) {
@@ -240,7 +263,7 @@ class PluginGuard : JavaPlugin(), Listener {
                 Component.text("This server is running ", NamedTextColor.WHITE)
                     .append(Component.text("Paper", NamedTextColor.GREEN))
                     .append(Component.text(" version ", NamedTextColor.WHITE))
-                    .append(Component.text("git-Paper-\"${s.fakeServerBrand}\" (MC: ${server.minecraftVersion})", NamedTextColor.GREEN))
+                    .append(Component.text("${s.fakeServerBrand} (MC: ${server.minecraftVersion})", NamedTextColor.GREEN))
             )
             else -> player.sendMessage(Component.text("This command has been disabled.", NamedTextColor.RED))
         }
@@ -311,5 +334,14 @@ class PluginGuard : JavaPlugin(), Listener {
             else -> sender.sendMessage(Component.text("Unknown subcommand. Use /pluginguard for help.", NamedTextColor.RED))
         }
         return true
+    }
+
+    override fun onTabComplete(sender: CommandSender, command: Command, alias: String, args: Array<String>): List<String> {
+        if (!command.name.equals("pluginguard", ignoreCase = true)) return emptyList()
+        if (!sender.hasPermission("pluginguard.reload")) return emptyList()
+        if (args.size == 1) {
+            return listOf("reload", "status").filter { it.startsWith(args[0].lowercase()) }
+        }
+        return emptyList()
     }
 }

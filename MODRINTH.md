@@ -76,6 +76,7 @@ bypass-permission: "pluginguard.bypass"
 
 protected-commands: [pl, plugins, ver, version, "?", help, about, icanhasbukkit]
 block-bukkit-commands: true
+block-namespaced-commands: true
 redirect-bukkit-commands: false
 
 hide-tab-completion: true
@@ -145,7 +146,7 @@ Alias: `/pg`
 
 ## Installation
 
-1. Drop `PluginGuard-<version>.jar` into your `plugins/` folder.
+1. Pick your jar: `PluginGuard-<version>.jar` for Minecraft 1.21.x, `PluginGuard-<version>-mc26.jar` for 26.x. Drop it into your `plugins/` folder.
 2. Start the server once to generate `plugins/PluginGuard/config.yml`.
 3. Edit the config to taste and run `/pluginguard reload`.
 

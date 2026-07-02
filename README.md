@@ -2,7 +2,9 @@
 
 #### Protect your server by hiding installed plugins from users
 
-Supports Minecraft **1.21.x** (Java 21+) and **26.x.x** (Java 25+).
+Supports Minecraft **1.21.x** (Java 21+) and **26.x** (Java 25+) — one codebase, two jars:
+`PluginGuard-<version>.jar` for 1.21.x servers, `PluginGuard-<version>-mc26.jar` for 26.x servers
+(build with `./gradlew shadowJar -Pmc=21` or `-Pmc=26`).
 Works on Paper, Purpur, Pufferfish, Folia, and other Paper forks. 
 Spigot/Bukkit will load the plugin but server-brand spoofing is disabled (Paper-only API).
 
@@ -82,6 +84,15 @@ Redirect `bukkit:` commands to the spoofed list instead of blocking
 
 ```yaml
 redirect-bukkit-commands: false
+```
+
+Block **all** namespaced commands (`/essentials:home`, `/luckperms:lp`, ...) — the
+namespace before the colon is the plugin's name, so one namespaced command confirms
+a plugin exists even when its bare alias is hidden. Also strips namespaced entries
+from tab completion:
+
+```yaml
+block-namespaced-commands: true
 ```
 
 ### Tab-completion protection

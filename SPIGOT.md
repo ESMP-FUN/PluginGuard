@@ -7,7 +7,6 @@
 
 
 
-
 [SIZE=5][B]Why PluginGuard?[/B][/SIZE]
 
 Knowing which plugins a server runs is the first step in attacking it. A player who knows you run a specific economy plugin, an outdated permissions plugin, or a known-vulnerable utility can target published CVEs or exploit known quirks. Default Bukkit gives that information away to anyone who types [COLOR=#cc6633][I]/pl[/I][/COLOR].
@@ -93,6 +92,7 @@ bypass-permission: "pluginguard.bypass"
 
 protected-commands: [pl, plugins, ver, version, "?", help, about, icanhasbukkit]
 block-bukkit-commands: true
+block-namespaced-commands: true
 redirect-bukkit-commands: false
 
 hide-tab-completion: true
@@ -156,7 +156,7 @@ honeypot-commands:
 [SIZE=5][B]Installation[/B][/SIZE]
 
 [LIST=1]
-[*]Drop [B]PluginGuard-<version>.jar[/B] into your [I]plugins/[/I] folder.
+[*]Pick your jar: [B]PluginGuard-<version>.jar[/B] for Minecraft 1.21.x, [B]PluginGuard-<version>-mc26.jar[/B] for 26.x. Drop it into your [I]plugins/[/I] folder.
 [*]Start the server once to generate [I]plugins/PluginGuard/config.yml[/I].
 [*]Edit the config to taste and run [I]/pluginguard reload[/I].
 [/LIST]
