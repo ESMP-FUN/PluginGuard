@@ -63,12 +63,17 @@ class PluginGuard : JavaPlugin(), Listener {
         // write time, so we install once here and a later /pluginguard reload can toggle it freely.
         // Fails open on servers that don't expose these internals (e.g. Spigot's remapped classes).
         brandSpoofer.enable()
+        // Update checking (PluginPulse). Modrinth primary, GitHub Releases fallback;
+        // config in pluginpulse.yml, overridable by an `update:` section in config.yml.
+        // Spigot-safe: plain-text notices when Adventure is absent. Fails soft.
+        io.github.darkstarworks.pluginpulse.PluginPulse.bootstrap(this)
         logger.info("PluginGuard enabled - protecting ${server.pluginManager.plugins.size} plugins")
     }
 
     override fun onDisable() {
         detector.forgetAll()
         brandSpoofer.disable()
+        io.github.darkstarworks.pluginpulse.PluginPulse.shutdown(this)
     }
 
     private fun registerPaperListeners() {
@@ -318,6 +323,10 @@ class PluginGuard : JavaPlugin(), Listener {
                 Component.text("/pluginguard status ", NamedTextColor.YELLOW)
                     .append(Component.text("- Show protection status", NamedTextColor.GRAY))
             )
+            sender.sendMessage(
+                Component.text("/pluginguard update ", NamedTextColor.YELLOW)
+                    .append(Component.text("- Check for / install updates", NamedTextColor.GRAY))
+            )
             return true
         }
 
@@ -325,6 +334,13 @@ class PluginGuard : JavaPlugin(), Listener {
             "reload" -> {
                 settings = loadSettings()
                 sender.sendMessage(Component.text("PluginGuard configuration reloaded!", NamedTextColor.GREEN))
+            }
+            "update" -> {
+                // Delegates to the shaded PluginPulse handler: check (default),
+                // download/install, ignore <v>, unignore <v>, restore, status.
+                io.github.darkstarworks.pluginpulse.PluginPulse.handleUpdateCommand(
+                    this, sender, args.copyOfRange(1, args.size)
+                )
             }
             "status" -> {
                 val s = settings
@@ -351,7 +367,11 @@ class PluginGuard : JavaPlugin(), Listener {
         if (!command.name.equals("pluginguard", ignoreCase = true)) return emptyList()
         if (!sender.hasPermission("pluginguard.reload")) return emptyList()
         if (args.size == 1) {
-            return listOf("reload", "status").filter { it.startsWith(args[0].lowercase()) }
+            return listOf("reload", "status", "update").filter { it.startsWith(args[0].lowercase()) }
+        }
+        if (args.size >= 2 && args[0].equals("update", ignoreCase = true)) {
+            return listOf("check", "download", "restore", "ignore", "unignore", "status")
+                .filter { it.startsWith(args[1].lowercase()) }
         }
         return emptyList()
     }

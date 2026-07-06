@@ -4,6 +4,19 @@
 # Author: darkstarworks | https://github.com/darkstarworks
 # Donate: https://ko-fi.com/darkstarworks
 #
+# ===== UPDATES =====
+# PluginGuard checks Modrinth (GitHub Releases as fallback) for new versions.
+# Manage it in-game with /pluginguard update. Defaults live in pluginpulse.yml;
+# override them here.
+update:
+  # off | check-only | notify | download | auto-stage
+  #   notify      — announce updates to admins (default; nothing is downloaded)
+  #   check-only  — check silently, no announcement
+  #   download    — download the verified jar into the update folder on request
+  #   auto-stage  — download automatically; installs on the next restart
+  mode: notify
+  check-interval-hours: 6
+#
 # ===== BASIC SETTINGS =====
 #
 # Hide Mode Options:

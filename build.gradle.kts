@@ -1,16 +1,16 @@
 plugins {
-    kotlin("jvm") version "2.3.20"
-    id("com.gradleup.shadow") version "8.3.6"
+    kotlin("jvm") version "2.3.21"
+    id("com.gradleup.shadow") version "9.0.0"
     id("xyz.jpenilla.run-paper") version "2.3.1"
 }
 
 group = "io.github.darkstarworks"
 
 // Two build targets from one source, selected with -Pmc=<line> (default 26):
-//   ./gradlew shadowJar -Pmc=21   ->  PluginGuard-1.2.0.jar        (compile 1.21.x, Java 21)
-//   ./gradlew shadowJar -Pmc=26   ->  PluginGuard-1.2.0-mc26.jar   (compile 26.x,  Java 25)
+//   ./gradlew shadowJar -Pmc=21   ->  PluginGuard-1.3.0.jar        (compile 1.21.x, Java 21)
+//   ./gradlew shadowJar -Pmc=26   ->  PluginGuard-1.3.0-mc26.jar   (compile 26.x,  Java 25)
 // 1.21.x servers run JDK21 and can't load Java 25 bytecode, hence the two artifacts.
-val pluginVersion = "1.2.0"
+val pluginVersion = "1.3.0"
 val mcLine = (findProperty("mc") as String?) ?: "26"
 val is26 = mcLine == "26"
 version = if (is26) "$pluginVersion-mc26" else pluginVersion
@@ -20,6 +20,7 @@ repositories {
     maven("https://repo.papermc.io/repository/maven-public/") {
         name = "papermc-repo"
     }
+    maven("https://jitpack.io")
 }
 
 dependencies {
@@ -33,6 +34,10 @@ dependencies {
     compileOnly("io.netty:netty-transport:4.1.101.Final")
     compileOnly("io.netty:netty-common:4.1.101.Final")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
+    // PluginPulse — update checking + verified install staging. Spigot-safe:
+    // plain-text notices when Adventure is absent. Relocated below so it can't
+    // clash with another plugin's shaded copy.
+    implementation("com.github.darkstarworks.PluginPulse:pluginpulse-core:v0.6.0")
 }
 
 // 1.21.x servers run JDK21 and cannot load newer bytecode; 26.x runs JDK25 and loads either.
@@ -63,5 +68,7 @@ tasks {
     }
     shadowJar {
         archiveClassifier.set("")
+        // Relocate PluginPulse so it can't clash with another plugin's shaded copy.
+        relocate("io.github.darkstarworks.pluginpulse", "io.github.darkstarworks.pluginguard.pluginpulse")
     }
 }

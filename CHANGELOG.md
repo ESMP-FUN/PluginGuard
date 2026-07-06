@@ -2,6 +2,19 @@
 
 All notable changes to PluginGuard will be documented in this file.
 
+## [1.3.0] - 2026-07-07
+
+- New: built-in update checking. PluginGuard now checks Modrinth (with GitHub
+  Releases as a fallback) for new versions and announces them to admins.
+  `/pluginguard update` gives `check`, `download` (fetches the verified jar,
+  confirms its checksum, and stages it in the server's update folder to install
+  on the next restart), `restore` (roll back to the previous jar),
+  `ignore <version>`, `unignore <version>`, and `status`. Controlled by the new
+  `update` section in config.yml (`mode`: `off` / `check-only` / `notify` /
+  `download` / `auto-stage`; default `notify` — nothing is ever downloaded
+  without opting in). Minecraft 26.x servers automatically follow the `-mc26`
+  build line. Degrades to plain-text notices on Spigot where Adventure is absent.
+
 ## [1.2.0] - 2026-07-02
 
 - Real Minecraft 26.x support: one codebase now builds two jars, selected with

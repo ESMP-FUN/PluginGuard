@@ -12,8 +12,8 @@ website: https://github.com/darkstarworks/PluginGuard
 
 commands:
   pluginguard:
-    description: Reload PluginGuard configuration
-    usage: /pluginguard reload
+    description: PluginGuard admin command
+    usage: /pluginguard <reload|status|update>
     aliases: [pg]
     permission: pluginguard.reload
 
