@@ -131,6 +131,6 @@ Running PluginGuard? Take a look at [URL=https://www.spigotmc.org/resources/anti
 
 [CENTER]
 [SIZE=4][B]Source & support[/B][/SIZE]
-[URL=https://github.com/darkstarworks/PluginGuard]GitHub — source & issues[/URL]
+[URL=https://github.com/ESMP-FUN/PluginGuard]GitHub — source & issues[/URL]
 [URL=https://ko-fi.com/darkstarworks]Donate on Ko-fi[/URL]
 [/CENTER]

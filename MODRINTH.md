@@ -143,5 +143,5 @@ Running PluginGuard? Take a look at **[AntiDupePro](https://modrinth.com/plugin/
 
 ---
 
-- **Source & issues**: <https://github.com/darkstarworks/PluginGuard>
+- **Source & issues**: <https://github.com/ESMP-FUN/PluginGuard>
 - **Donate**: <https://ko-fi.com/darkstarworks>

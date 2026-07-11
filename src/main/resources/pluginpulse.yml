@@ -1,5 +1,5 @@
 # PluginPulse updater configuration.
-# https://github.com/darkstarworks/PluginPulse
+# https://github.com/ESMP-FUN/PluginPulse
 #
 # Modrinth is the primary source; GitHub Releases is the fallback.
 modrinth: pluginguard
@@ -7,7 +7,7 @@ github: darkstarworks/PluginGuard
 
 permission: pluginguard.reload
 command-root: /pluginguard
-user-agent-contact: https://github.com/darkstarworks/PluginGuard
+user-agent-contact: https://github.com/ESMP-FUN/PluginGuard
 prefix: "<gold>[PluginGuard]</gold>"
 
 # off | check-only | notify | download | auto-stage
