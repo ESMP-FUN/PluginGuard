@@ -1,7 +1,7 @@
 name: PluginGuard
 version: '${version}'
 main: io.github.darkstarworks.PluginGuard
-api-version: '1.21'
+api-version: '${apiVersion}'
 load: STARTUP
 prefix: PG »
 folia-supported: true

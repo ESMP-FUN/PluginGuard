@@ -2,6 +2,29 @@
 
 All notable changes to PluginGuard will be documented in this file.
 
+## [1.4.0] - 2026-09-27
+
+Tested builds: Paper 1.21.11, 26.2 and 26.3.
+
+### Added
+- **Minecraft 26.3 support.** A third download, `-mc263.jar`, for 26.3. `-mc26.jar` now covers 26.1 and 26.2.
+- **Plugin channels are hidden.** The list of channels players' games get on join named your plugins. See `hide-plugin-channels`.
+- **The query port no longer lists your plugins.** Its software name shows your fake brand too.
+- **Discord warnings.** Paste a webhook into `discord-webhook`.
+- **Automatic actions.** `alert-commands` runs console commands, like a kick, when someone probes.
+- **`messages.yml`.** Every message PluginGuard sends can now be changed.
+- **probes.log stays small.** Past `log-max-size-mb` it moves to `probes.old.log`.
+- **A full guide** in `docs/`.
+
+### Fixed
+- **Hidden commands now get the exact "Unknown command" reply of a made-up command.** The old text gave PluginGuard away on Paper.
+- **"permission-denied" mode uses your server's real no-permission message.**
+- **TAB after a hidden command no longer lists plugin names** (for example `/version `).
+- **Spigot works again.** The first blocked command or warning used to throw an error.
+- **An update installed without a restart no longer leaves the old copy running.**
+- **Aggressive mode no longer hides `/pluginguard` from staff.**
+- **A mistyped `hide-mode` no longer makes `/pl` answer nothing.** It warns and uses `unknown-command`.
+
 ## [1.3.0] - 2026-07-07
 
 - New: built-in update checking. PluginGuard now checks Modrinth (with GitHub

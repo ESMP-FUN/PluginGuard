@@ -16,6 +16,6 @@ prefix: "<gold>[PluginGuard]</gold>"
 mode: notify
 check-interval-hours: 6
 
-# PluginGuard ships a separate "-mc26" build for Minecraft 26.x; servers on
-# 26.x follow that release line automatically.
-track: mc26
+# PluginGuard ships separate builds for 1.21.x, 26.1-26.2 ("-mc26") and 26.3
+# ("-mc263"). Each 26.x build follows its own release line.
+track: ${track}

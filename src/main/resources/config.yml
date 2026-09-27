@@ -1,45 +1,48 @@
-# PluginGuard Configuration - Comprehensive Plugin Protection
-# Protect your server by hiding installed plugins from users
+# PluginGuard settings
 #
-# Author: darkstarworks | https://github.com/darkstarworks
-# Donate: https://ko-fi.com/darkstarworks
+# Hides which plugins your server runs from players. Staff with the bypass
+# permission see everything as normal.
+# After editing, run /pluginguard reload. No restart needed.
 #
-# ===== UPDATES =====
-# PluginGuard checks Modrinth (GitHub Releases as fallback) for new versions.
-# Manage it in-game with /pluginguard update. Defaults live in pluginpulse.yml;
-# override them here.
+# Guide: https://github.com/ESMP-FUN/PluginGuard/tree/main/docs
+
+# ----- Updates -----
+
+# How PluginGuard handles new versions:
+#   notify      tells staff when an update is out (nothing is downloaded)
+#   check-only  checks quietly, no message
+#   download    downloads the update when you run /pluginguard update download
+#   auto-stage  downloads it by itself; it installs on the next restart
+#   off         never checks
 update:
-  # off | check-only | notify | download | auto-stage
-  #   notify      — announce updates to admins (default; nothing is downloaded)
-  #   check-only  — check silently, no announcement
-  #   download    — download the verified jar into the update folder on request
-  #   auto-stage  — download automatically; installs on the next restart
   mode: notify
+  # How often to check, in hours.
   check-interval-hours: 6
-#
-# ===== BASIC SETTINGS =====
-#
-# Hide Mode Options:
-# - "unknown-command": Shows "Unknown command" message (most realistic)
-# - "empty": Shows "Plugins (0):"
-# - "fake-list": Shows configured fake plugins below
-# - "permission-denied": Shows permission error message
+
+# ----- What players see -----
+
+# What /plugins, /version, /help and /icanhasbukkit answer:
+#   unknown-command    the same "Unknown or incomplete command" a made-up
+#                      command gets (the most convincing)
+#   empty              "Plugins (0):"
+#   fake-list          the names in fake-plugins below
+#   permission-denied  your server's normal "no permission" message
 hide-mode: "unknown-command"
 
-# Fake plugins to display when hide-mode is "fake-list"
-# Use vanilla-sounding names to appear legitimate
+# The plugin names /plugins shows when hide-mode is "fake-list".
 fake-plugins:
   - "ServerCore"
   - "WorldManager"
   - "CoreProtect"
   - "EveryoneChat"
 
-# Permission node to bypass all plugin hiding (staff/admin only)
+# Players with this permission see the real server and are never tracked.
 bypass-permission: "pluginguard.bypass"
 
-# ===== COMMAND PROTECTION =====
+# ----- Commands -----
 
-# Commands to intercept and hide (supports bukkit: and minecraft: prefixes)
+# Commands that give the plugin list away. Typing any of these gets the
+# hide-mode answer. This also covers /bukkit:plugins and /minecraft:help.
 protected-commands:
   - "pl"
   - "plugins"
@@ -50,36 +53,30 @@ protected-commands:
   - "about"
   - "icanhasbukkit"
 
-# Block all bukkit: and minecraft: prefixed commands (prevents probing)
+# Blocks every command typed as /bukkit:something or /minecraft:something.
 block-bukkit-commands: true
 
-# Block ALL namespaced commands (e.g. /essentials:home, /luckperms:lp).
-# The namespace before the colon is the plugin's name, so a single namespaced
-# command confirms a plugin exists even when its bare alias is hidden.
-# Also strips namespaced entries from tab completion.
+# Blocks commands typed with a plugin name in front, like /essentials:home.
+# The part before the colon is the plugin's name, so one of these would give
+# the plugin away. They are also taken out of TAB suggestions.
 block-namespaced-commands: true
 
-# Redirect bukkit: commands to show spoofed list instead of blocking
-# Only works if block-bukkit-commands is true
+# When on, /bukkit:plugins shows the hide-mode answer instead of "Unknown
+# command". Only matters while block-bukkit-commands is on.
 redirect-bukkit-commands: false
 
-# ===== TAB COMPLETION PROTECTION =====
-
-# Remove plugin commands from tab-completion suggestions
-# Prevents discovery through /[tab] probing
+# Takes the commands above out of the list players get when they press TAB.
 hide-tab-completion: true
 
-# ===== ADVANCED PROTECTION =====
-
-# Hide permission-gated plugin commands behind "Unknown command"
-# When a player runs a plugin command they lack permission for, the plugin's own
-# "You don't have permission" reply would confirm the plugin exists. This option
-# answers with the vanilla unknown-command line instead, before the plugin responds.
-# (Only works for commands that declare a permission in their plugin.yml.)
+# When a player runs a plugin command they aren't allowed to use, the plugin
+# usually replies "You don't have permission", which proves it is installed.
+# With this on, they get "Unknown command" instead.
+# Only works for commands that list a permission in their plugin.
 block-unknown-commands: true
 
-# Common plugin commands to block (case-insensitive)
-# Add popular plugin commands that users might probe for
+# Commands of popular plugins that players try, to see if you run them.
+# Typing one gets "Unknown command" (while block-common-plugin-commands is on).
+# Remove any your players are meant to use.
 common-plugin-commands:
   - "essentials"
   - "ess"
@@ -101,74 +98,92 @@ common-plugin-commands:
   - "holographicdisplays"
   - "hd"
 
-# Block common plugin commands from the list above
 block-common-plugin-commands: true
 
-# ===== SERVER METADATA PROTECTION =====
+# ----- Server software -----
 
-# Hide server software everywhere it leaks over the protocol:
-#  - the server-list ping / MOTD screen, AND
-#  - the in-game "minecraft:brand" channel that the F3 debug screen and
-#    "server brand" client mods read after a player joins.
-# Most plugins only cover the ping; PluginGuard spoofs both to the value below.
-# (In-game spoofing needs Paper internals; on Spigot it degrades to ping-only.)
+# Hides that you run Paper (or Spigot, Purpur...) in the server list, on the
+# F3 screen in game, and in the query answer. They show fake-server-brand
+# instead. The F3 screen and query need Paper.
 hide-server-brand: true
 
-# Fake server brand to display (e.g., "vanilla", "1.21.1", "custom")
+# What to show instead, for example "vanilla".
 fake-server-brand: "vanilla"
 
-# ===== AGGRESSIVE MODE =====
+# When a player joins, the server tells their game which "channels" plugins
+# use to talk to client mods, like "worldedit:cui". That list names your
+# plugins, so this empties it. Needs Paper.
+# This happens before the player has fully joined, so staff with the bypass
+# permission get the empty list too.
+hide-plugin-channels: true
 
-# AGGRESSIVE MODE: Block ALL plugin commands for players without explicit permission
-# WARNING: This will hide even beneficial plugin commands for regular players
-# Use only if you want maximum security and manually grant command permissions
-# Requires players to have "<command>.use" permission to use any plugin command
+# Channels to keep while hide-plugin-channels is on. Only needed if a client
+# mod stops working. Builders with the WorldEdit CUI mod, for example, need
+# "worldedit:cui". Everyone can see the channels listed here.
+allowed-plugin-channels: []
+
+# ----- Aggressive mode -----
+
+# Hides every plugin command from players unless they have the permission
+# "<command>.use", for example "home.use" for /home. This also hides commands
+# you want players to use, so you must give those permissions yourself.
 aggressive-mode: false
 
-# ===== PROBE LOGGING & DETECTION =====
-#
-# PluginGuard can record when players try to discover what plugins you run,
-# and alert online admins when a player shows a pattern of probing behavior.
-#
-# Players with "pluginguard.bypass" are never tracked.
+# ----- Catching players who look for your plugins -----
 
+# PluginGuard counts it when a player tries the commands above and warns your
+# staff when someone clearly goes looking. Players with the bypass permission
+# are never counted.
 logging:
-  # Append every probe attempt to plugins/PluginGuard/probes.log (one line per event).
-  # Disabled by default — enable if you want a forensic trail.
+  # Writes every attempt to plugins/PluginGuard/probes.log.
   log-to-file: false
 
-  # Also log every individual probe to the server console.
-  # Noisy on busy servers; off by default. The detector still logs its alerts to console.
+  # When probes.log is bigger than this many megabytes, it is renamed to
+  # probes.old.log and a new one is started. 0 lets it grow forever.
+  log-max-size-mb: 5
+
+  # Also writes every attempt to the console. Busy servers will find this noisy.
   log-individual-probes: false
 
   detection:
-    # Master switch for pattern detection and admin alerts.
+    # Turns the warnings off completely when false.
     enabled: true
 
-    # Weighted score within window-seconds that triggers an alert.
-    # Probe weights:
-    #   high   (3) — bukkit:/minecraft: prefixed commands, /icanhasbukkit
-    #   medium (2) — /pl, /plugins, /ver, /version, /about
-    #   low    (1) — common-plugin enumeration (/lp, /we, /co, /mv, ...)
-    #   honeypot (5) — see honeypot-commands below (single hit fires immediately)
-    # /help and /? are never tracked because legitimate players use them constantly.
+    # Each attempt adds points:
+    #   3  /bukkit:... or /minecraft:... commands, /icanhasbukkit, /essentials:home style
+    #   2  /pl, /plugins, /ver, /version, /about
+    #   1  one of the common-plugin-commands
+    #   5  a honeypot command (see the bottom of this file)
+    # /help and /? never count, normal players use them all the time.
+    # Staff are warned once a player reaches score-threshold points within
+    # window-seconds. With the defaults: 5 points within 60 seconds, so
+    # /pl followed by /ver is enough.
     score-threshold: 5
     window-seconds: 60
 
-    # Minimum seconds between alerts for the same player. Prevents alert spam
-    # from a determined prober.
+    # Seconds before the same player can cause another warning. 300 = 5 minutes.
     alert-cooldown-seconds: 300
 
-    # Online players with this permission receive a chat notification on each alert.
-    # Console always logs the alert regardless.
+    # Online staff with this permission get the warning in chat. The console
+    # always gets it.
     notify-permission: "pluginguard.alerts"
 
-# Honeypot commands — fake commands that no legitimate user should ever type.
-# When a player types any of these, PluginGuard blocks the command AND records
-# a high-weight probe (single hit = immediate alert at the default threshold).
-#
-# Example honeypots: invent commands that sound plausible to an attacker but
-# don't actually exist on your server.
+    # Console commands to run when a player sets off a warning, for example to
+    # kick them. Leave empty to only warn staff.
+    # %player% is their name, %uuid% their UUID, %score% their points.
+    # Example:
+    #   alert-commands:
+    #     - "kick %player% Please don't probe the server."
+    alert-commands: []
+
+    # Also post each warning in a Discord channel. In Discord, open the
+    # channel's settings, then Integrations, then Webhooks. Create one, copy
+    # its URL and paste it between the quotes. Leave empty to turn off.
+    discord-webhook: ""
+
+# Honeypots: made-up commands only someone searching your server would try.
+# Typing one gets "Unknown command" and sets off a warning straight away.
+# Pick names that don't exist on your server.
 honeypot-commands:
   - "staffchat"
   - "adminchat"

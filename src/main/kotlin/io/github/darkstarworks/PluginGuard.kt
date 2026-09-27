@@ -1,7 +1,5 @@
 package io.github.darkstarworks
 
-import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.format.NamedTextColor
 import org.bukkit.command.Command
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
@@ -11,13 +9,12 @@ import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerCommandPreprocessEvent
 import org.bukkit.event.player.PlayerCommandSendEvent
 import org.bukkit.event.player.PlayerQuitEvent
+import org.bukkit.event.server.TabCompleteEvent
 import org.bukkit.plugin.java.JavaPlugin
 
 class PluginGuard : JavaPlugin(), Listener {
 
-    // Immutable snapshot of every config-derived value. Swapped atomically on reload via
-    // a @Volatile reference so concurrent event handlers on different Folia region threads
-    // always observe a consistent set of values without taking any lock.
+    // Replaced whole on reload, so handlers on different Folia threads never see a half-loaded mix.
     data class Settings(
         val hideMode: String,
         val fakePlugins: List<String>,
@@ -34,66 +31,59 @@ class PluginGuard : JavaPlugin(), Listener {
         val blockCommonPluginCommands: Boolean,
         val blockNamespacedCommands: Boolean,
         val aggressiveMode: Boolean,
-        // Logging / detection
-        val loggingEnabled: Boolean,
+        val hidePluginChannels: Boolean,
+        val allowedPluginChannels: Set<String>,
         val logToFile: Boolean,
+        val logMaxSizeBytes: Long,
         val logIndividualProbes: Boolean,
         val detectionEnabled: Boolean,
         val detectionScoreThreshold: Int,
         val detectionWindowSeconds: Int,
         val detectionAlertCooldownSeconds: Int,
         val notifyPermission: String,
+        val alertCommands: List<String>,
+        val discordWebhook: String,
     )
 
     @Volatile
     private lateinit var settings: Settings
 
     private val detector = ProbeDetector(this)
-    private val brandSpoofer = BrandSpoofer(this)
+    private val packetSpoofer = PacketSpoofer(this)
+    val messages = Messages(this)
 
     fun currentSettings(): Settings = settings
 
     override fun onEnable() {
         saveDefaultConfig()
+        messages.reload()
         settings = loadSettings()
         server.pluginManager.registerEvents(this, this)
-        registerPaperListeners()
-        // In-game brand spoofing (F3 / client "server brand" mods) — the ping-only PingListener
-        // can't reach it. Injects at the Netty layer; the handler consults hideServerBrand live at
-        // write time, so we install once here and a later /pluginguard reload can toggle it freely.
-        // Fails open on servers that don't expose these internals (e.g. Spigot's remapped classes).
-        brandSpoofer.enable()
-        // Update checking (PluginPulse). Modrinth primary, GitHub Releases fallback;
-        // config in pluginpulse.yml, overridable by an `update:` section in config.yml.
-        // Spigot-safe: plain-text notices when Adventure is absent. Fails soft.
+        if (Platform.isPaper) {
+            server.pluginManager.registerEvents(PaperListener(this), this)
+        } else {
+            logger.warning("This server is not Paper, so the server brand, plugin channels and query answer can't be hidden.")
+        }
+        packetSpoofer.enable()
         io.github.darkstarworks.pluginpulse.PluginPulse.bootstrap(this)
-        logger.info("PluginGuard enabled - protecting ${server.pluginManager.plugins.size} plugins")
+        logger.info("Hiding ${server.pluginManager.plugins.size} plugins from players.")
     }
 
     override fun onDisable() {
         detector.forgetAll()
-        brandSpoofer.disable()
+        packetSpoofer.disable()
         io.github.darkstarworks.pluginpulse.PluginPulse.shutdown(this)
     }
 
-    private fun registerPaperListeners() {
-        // PaperServerListPingEvent only exists on Paper and its forks. Probe via reflection so
-        // the plugin still loads on Spigot/Bukkit (server brand spoofing simply won't apply).
-        try {
-            Class.forName("com.destroystokyo.paper.event.server.PaperServerListPingEvent")
-            server.pluginManager.registerEvents(PingListener(this), this)
-        } catch (_: ClassNotFoundException) {
-            logger.warning("PaperServerListPingEvent unavailable - server-brand spoofing disabled (Paper or a Paper fork required)")
-        }
-    }
-
-    fun shouldHideServerBrand(): Boolean = settings.hideServerBrand
-    fun fakeBrand(): String = settings.fakeServerBrand
-
     private fun loadSettings(): Settings {
         reloadConfig()
+        val hideMode = config.getString("hide-mode", "unknown-command")!!.lowercase()
+        val webhook = config.getString("logging.detection.discord-webhook", "")!!.trim()
         return Settings(
-            hideMode = config.getString("hide-mode", "unknown-command")!!,
+            hideMode = if (hideMode in HIDE_MODES) hideMode else {
+                logger.warning("hide-mode \"$hideMode\" in config.yml is not an option (use ${HIDE_MODES.joinToString(", ")}). Using unknown-command for now.")
+                "unknown-command"
+            },
             fakePlugins = config.getStringList("fake-plugins"),
             bypassPermission = config.getString("bypass-permission", "pluginguard.bypass")!!,
             protectedCommands = config.getStringList("protected-commands").mapTo(HashSet()) { it.lowercase() },
@@ -108,19 +98,21 @@ class PluginGuard : JavaPlugin(), Listener {
             blockCommonPluginCommands = config.getBoolean("block-common-plugin-commands", true),
             blockNamespacedCommands = config.getBoolean("block-namespaced-commands", true),
             aggressiveMode = config.getBoolean("aggressive-mode", false),
-            loggingEnabled = config.getBoolean("logging.enabled", true).let {
-                // logging section is implicitly enabled if any sub-toggle is on
-                it || config.getBoolean("logging.log-to-file", false) ||
-                    config.getBoolean("logging.log-individual-probes", false) ||
-                    config.getBoolean("logging.detection.enabled", true)
-            },
+            hidePluginChannels = config.getBoolean("hide-plugin-channels", true),
+            allowedPluginChannels = config.getStringList("allowed-plugin-channels").mapTo(HashSet()) { it.trim().lowercase() },
             logToFile = config.getBoolean("logging.log-to-file", false),
+            logMaxSizeBytes = config.getLong("logging.log-max-size-mb", 5L).coerceAtLeast(0L) * 1024L * 1024L,
             logIndividualProbes = config.getBoolean("logging.log-individual-probes", false),
             detectionEnabled = config.getBoolean("logging.detection.enabled", true),
-            detectionScoreThreshold = config.getInt("logging.detection.score-threshold", 5),
-            detectionWindowSeconds = config.getInt("logging.detection.window-seconds", 60),
-            detectionAlertCooldownSeconds = config.getInt("logging.detection.alert-cooldown-seconds", 300),
+            detectionScoreThreshold = config.getInt("logging.detection.score-threshold", 5).coerceAtLeast(1),
+            detectionWindowSeconds = config.getInt("logging.detection.window-seconds", 60).coerceAtLeast(1),
+            detectionAlertCooldownSeconds = config.getInt("logging.detection.alert-cooldown-seconds", 300).coerceAtLeast(0),
             notifyPermission = config.getString("logging.detection.notify-permission", "pluginguard.alerts")!!,
+            alertCommands = config.getStringList("logging.detection.alert-commands").filter { it.isNotBlank() },
+            discordWebhook = if (webhook.isEmpty() || webhook.startsWith("https://")) webhook else {
+                logger.warning("discord-webhook in config.yml must start with https://. Discord alerts are off until it does.")
+                ""
+            },
         )
     }
 
@@ -130,29 +122,14 @@ class PluginGuard : JavaPlugin(), Listener {
         val s = settings
         if (player.hasPermission(s.bypassPermission)) return
 
-        // Extract just the base command without allocating a lowercased copy of the whole message
-        // or splitting on spaces. Hot path: runs on every command a player issues.
         val msg = event.message
-        var start = if (msg.startsWith('/')) 1 else 0
-        // Skip any whitespace between the slash and the command. A prober can pad "/  plugins" or
-        // "/\tplugins"; some dispatchers tolerate that and route it while a naive slice would miss
-        // the token entirely. Mirror the dispatcher: find the first non-whitespace char.
-        while (start < msg.length && msg[start].isWhitespace()) start++
-        var end = start
-        while (end < msg.length && !msg[end].isWhitespace()) end++
-        if (start >= end) return
-        val baseCommand = msg.substring(start, end).lowercase()
+        val baseCommand = baseCommandOf(msg) ?: return
+        val cleanCommand = stripVanillaNamespace(baseCommand)
 
-        val cleanCommand = when {
-            baseCommand.startsWith("bukkit:") -> baseCommand.substring(7)
-            baseCommand.startsWith("minecraft:") -> baseCommand.substring(10)
-            else -> baseCommand
-        }
-
-        // Honeypot first — by definition the highest-signal probe and we never want to forward it.
+        // Honeypot first: the highest-signal probe, and never forwarded.
         if (cleanCommand in s.honeypotCommands || baseCommand in s.honeypotCommands) {
             event.isCancelled = true
-            sendUnknownCommand(player)
+            messages.unknownCommand(player, msg)
             detector.record(player, ProbeDetector.Category.HONEYPOT, "honeypot:$baseCommand")
             return
         }
@@ -161,51 +138,50 @@ class PluginGuard : JavaPlugin(), Listener {
             baseCommand in s.protectedCommands || cleanCommand in s.protectedCommands -> {
                 event.isCancelled = true
                 if (baseCommand.startsWith("bukkit:") && s.redirectBukkitCommands) {
-                    handlePluginsCommand(player, s)
+                    handlePluginsCommand(player, msg, s)
                 } else {
-                    handleProtectedCommand(player, cleanCommand, s)
+                    handleProtectedCommand(player, cleanCommand, msg, s)
                 }
-                // Skip /help and /? — far too commonly typed legitimately to be useful signal.
+                // /help and /? are typed legitimately far too often to count as a probe.
                 if (cleanCommand != "help" && cleanCommand != "?") {
-                    val cat = if (baseCommand.startsWith("bukkit:") || baseCommand.startsWith("minecraft:") || cleanCommand == "icanhasbukkit")
+                    val cat = if (baseCommand != cleanCommand || cleanCommand == "icanhasbukkit")
                         ProbeDetector.Category.HIGH
                     else
                         ProbeDetector.Category.MEDIUM
                     detector.record(player, cat, "/$baseCommand")
                 }
             }
-            (baseCommand.startsWith("bukkit:") || baseCommand.startsWith("minecraft:")) && s.blockBukkitCommands -> {
+            baseCommand != cleanCommand && s.blockBukkitCommands -> {
                 event.isCancelled = true
-                sendUnknownCommand(player)
+                messages.unknownCommand(player, msg)
                 detector.record(player, ProbeDetector.Category.HIGH, baseCommand)
             }
-            // A namespaced command like /essentials:home confirms the plugin exists even when the
-            // bare alias is blocked — the namespace IS the plugin name. Block every namespace.
+            // The namespace of /essentials:home is the plugin's name, so it confirms the plugin
+            // even when the bare alias is hidden.
             s.blockNamespacedCommands && ':' in baseCommand -> {
                 event.isCancelled = true
-                sendUnknownCommand(player)
+                messages.unknownCommand(player, msg)
                 detector.record(player, ProbeDetector.Category.HIGH, baseCommand)
             }
             baseCommand in s.commonPluginCommands && s.blockCommonPluginCommands -> {
                 event.isCancelled = true
-                sendUnknownCommand(player)
+                messages.unknownCommand(player, msg)
                 detector.record(player, ProbeDetector.Category.LOW, "/$baseCommand")
             }
             s.aggressiveMode && !player.hasPermission("$baseCommand.use") -> {
-                if (server.getPluginCommand(baseCommand) != null) {
+                val cmd = server.getPluginCommand(baseCommand)
+                if (cmd != null && cmd.plugin != this) {
                     event.isCancelled = true
-                    sendUnknownCommand(player)
+                    messages.unknownCommand(player, msg)
                 }
             }
-            // A plugin's own "You don't have permission" reply confirms the plugin exists.
-            // If the player can't run the command anyway, answer with the vanilla unknown-command
-            // line before the plugin gets a chance to leak itself. Not tracked by the detector:
-            // legitimate players hit permission walls all the time.
+            // A plugin's own "no permission" reply confirms it exists. Not a probe: legitimate
+            // players hit permission walls all the time.
             s.blockUnknownCommands -> {
                 val cmd = server.getPluginCommand(baseCommand)
                 if (cmd != null && cmd.plugin != this && !cmd.testPermissionSilent(player)) {
                     event.isCancelled = true
-                    sendUnknownCommand(player)
+                    messages.unknownCommand(player, msg)
                 }
             }
         }
@@ -216,28 +192,41 @@ class PluginGuard : JavaPlugin(), Listener {
         val s = settings
         if (!s.hideTabCompletion) return
         if (event.player.hasPermission(s.bypassPermission)) return
+        event.commands.removeIf { isHiddenCommand(event.player, it.lowercase(), s) }
+    }
 
-        event.commands.removeIf { command ->
-            val cleanCommand = when {
-                command.startsWith("bukkit:") -> command.substring(7).lowercase()
-                command.startsWith("minecraft:") -> command.substring(10).lowercase()
-                else -> command.lowercase()
-            }
-
-            cleanCommand in s.protectedCommands ||
-                    (cleanCommand in s.commonPluginCommands && s.blockCommonPluginCommands) ||
-                    (s.blockBukkitCommands && (command.startsWith("bukkit:") || command.startsWith("minecraft:"))) ||
-                    // Namespaced completions (essentials:home, luckperms:lp, ...) spell out the
-                    // plugin list by themselves — strip every namespaced entry from suggestions.
-                    (s.blockNamespacedCommands && ':' in command)
+    // Argument suggestions ("/version " lists every plugin). A modified client can ask even for a
+    // hidden command. Paper sends these through AsyncTabCompleteEvent instead; this covers Spigot.
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    fun onTabComplete(event: TabCompleteEvent) {
+        if (hidesSuggestionsFor(event.sender, event.buffer)) {
+            event.completions = mutableListOf()
+            event.isCancelled = true
         }
+    }
 
+    fun hidesSuggestionsFor(sender: CommandSender, buffer: String): Boolean {
+        if (sender !is Player) return false
+        val s = settings
+        if (!s.hideTabCompletion || sender.hasPermission(s.bypassPermission)) return false
+        val base = baseCommandOf(buffer) ?: return false
+        // Completing the command name itself is governed by the command list the client was sent.
+        if (buffer.removePrefix("/").trimStart().none { it.isWhitespace() }) return false
+        val clean = stripVanillaNamespace(base)
+        return isHiddenCommand(sender, base, s) || clean in s.honeypotCommands || base in s.honeypotCommands
+    }
+
+    private fun isHiddenCommand(player: Player, label: String, s: Settings): Boolean {
+        val clean = stripVanillaNamespace(label)
+        if (clean in s.protectedCommands) return true
+        if (s.blockCommonPluginCommands && clean in s.commonPluginCommands) return true
+        if (s.blockBukkitCommands && label != clean) return true
+        if (s.blockNamespacedCommands && ':' in label) return true
         if (s.aggressiveMode) {
-            event.commands.removeIf { command ->
-                val cmd = server.getPluginCommand(command)
-                cmd != null && cmd.plugin != this && !event.player.hasPermission("$command.use")
-            }
+            val cmd = server.getPluginCommand(label)
+            if (cmd != null && cmd.plugin != this && !player.hasPermission("$label.use")) return true
         }
+        return false
     }
 
     @EventHandler
@@ -245,120 +234,83 @@ class PluginGuard : JavaPlugin(), Listener {
         detector.forgetPlayer(event.player.uniqueId)
     }
 
-    private fun handleProtectedCommand(player: Player, command: String, s: Settings) {
+    private fun handleProtectedCommand(player: Player, command: String, msg: String, s: Settings) {
         when (command) {
-            "plugins", "pl" -> handlePluginsCommand(player, s)
-            "version", "ver", "about" -> handleVersionCommand(player, s)
-            "help", "?" -> handleHelpCommand(player, s)
-            "icanhasbukkit" -> handleICanHasBukkitCommand(player, s)
-            else -> sendUnknownCommand(player)
+            "plugins", "pl" -> handlePluginsCommand(player, msg, s)
+            "version", "ver", "about" -> handleVersionCommand(player, msg, s)
+            "help", "?" -> handleSimpleCommand(player, msg, s, "fake-help")
+            "icanhasbukkit" -> handleSimpleCommand(player, msg, s, "fake-icanhasbukkit")
+            else -> messages.unknownCommand(player, msg)
         }
     }
 
-    private fun handlePluginsCommand(player: Player, s: Settings) {
+    private fun handlePluginsCommand(player: Player, msg: String, s: Settings) {
         when (s.hideMode) {
-            "unknown-command" -> sendUnknownCommand(player)
-            "empty" -> player.sendMessage(Component.text("Plugins (0):", NamedTextColor.WHITE))
+            "empty" -> messages.send(player, "empty-plugin-list")
             "fake-list" -> {
                 val plugins = s.fakePlugins.ifEmpty { listOf("ServerCore", "WorldManager") }
-                player.sendMessage(
-                    Component.text("Plugins (${plugins.size}): ", NamedTextColor.WHITE)
-                        .append(Component.text(plugins.joinToString(", "), NamedTextColor.GREEN))
-                )
+                messages.send(player, "fake-plugin-list", "count" to plugins.size, "plugins" to plugins.joinToString(", "))
             }
-            "permission-denied" -> player.sendMessage(
-                Component.text("I'm sorry, but you do not have permission to perform this command.", NamedTextColor.RED)
-            )
+            "permission-denied" -> messages.permissionDenied(player)
+            else -> messages.unknownCommand(player, msg)
         }
     }
 
-    private fun handleVersionCommand(player: Player, s: Settings) {
+    private fun handleVersionCommand(player: Player, msg: String, s: Settings) {
         when (s.hideMode) {
-            "unknown-command" -> sendUnknownCommand(player)
-            "fake-list" -> player.sendMessage(
-                Component.text("This server is running ", NamedTextColor.WHITE)
-                    .append(Component.text("Paper", NamedTextColor.GREEN))
-                    .append(Component.text(" version ", NamedTextColor.WHITE))
-                    .append(Component.text("${s.fakeServerBrand} (MC: ${server.minecraftVersion})", NamedTextColor.GREEN))
-            )
-            else -> player.sendMessage(Component.text("This command has been disabled.", NamedTextColor.RED))
+            "fake-list" -> messages.send(player, "fake-version", "brand" to s.fakeServerBrand, "version" to server.minecraftVersion)
+            "empty" -> messages.send(player, "version-disabled")
+            "permission-denied" -> messages.permissionDenied(player)
+            else -> messages.unknownCommand(player, msg)
         }
     }
 
-    private fun handleHelpCommand(player: Player, s: Settings) {
-        if (s.hideMode == "unknown-command") {
-            sendUnknownCommand(player)
-        } else {
-            player.sendMessage(Component.text("--------- Help: Index ---------", NamedTextColor.GOLD))
-            player.sendMessage(Component.text("Use /help [n] to get page n of help.", NamedTextColor.GRAY))
-        }
-    }
-
-    private fun handleICanHasBukkitCommand(player: Player, s: Settings) {
+    private fun handleSimpleCommand(player: Player, msg: String, s: Settings, key: String) {
         when (s.hideMode) {
-            "unknown-command" -> sendUnknownCommand(player)
-            else -> player.sendMessage(Component.text("This server is not running Bukkit!", NamedTextColor.WHITE))
+            "empty", "fake-list" -> messages.send(player, key)
+            "permission-denied" -> messages.permissionDenied(player)
+            else -> messages.unknownCommand(player, msg)
         }
-    }
-
-    private fun sendUnknownCommand(player: Player) {
-        player.sendMessage(Component.text("Unknown command. Type \"/help\" for help.", NamedTextColor.RED))
     }
 
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<String>): Boolean {
         if (!command.name.equals("pluginguard", ignoreCase = true)) return false
 
         if (!sender.hasPermission("pluginguard.reload")) {
-            sender.sendMessage(Component.text("You don't have permission to use this command.", NamedTextColor.RED))
+            messages.send(sender, "no-permission")
             return true
         }
 
-        if (args.isEmpty()) {
-            sender.sendMessage(Component.text("PluginGuard Commands:", NamedTextColor.GOLD))
-            sender.sendMessage(
-                Component.text("/pluginguard reload ", NamedTextColor.YELLOW)
-                    .append(Component.text("- Reload configuration", NamedTextColor.GRAY))
-            )
-            sender.sendMessage(
-                Component.text("/pluginguard status ", NamedTextColor.YELLOW)
-                    .append(Component.text("- Show protection status", NamedTextColor.GRAY))
-            )
-            sender.sendMessage(
-                Component.text("/pluginguard update ", NamedTextColor.YELLOW)
-                    .append(Component.text("- Check for / install updates", NamedTextColor.GRAY))
-            )
-            return true
-        }
-
-        when (args[0].lowercase()) {
+        when (args.firstOrNull()?.lowercase()) {
+            null -> messages.send(sender, "help")
             "reload" -> {
                 settings = loadSettings()
-                sender.sendMessage(Component.text("PluginGuard configuration reloaded!", NamedTextColor.GREEN))
+                messages.reload()
+                messages.send(sender, "reloaded")
             }
-            "update" -> {
-                // Delegates to the shaded PluginPulse handler: check (default),
-                // download/install, ignore <v>, unignore <v>, restore, status.
-                io.github.darkstarworks.pluginpulse.PluginPulse.handleUpdateCommand(
-                    this, sender, args.copyOfRange(1, args.size)
-                )
-            }
+            "update" -> io.github.darkstarworks.pluginpulse.PluginPulse.handleUpdateCommand(
+                this, sender, args.copyOfRange(1, args.size)
+            )
             "status" -> {
                 val s = settings
-                sender.sendMessage(Component.text("PluginGuard Status:", NamedTextColor.GOLD))
-                fun row(label: String, value: String) = sender.sendMessage(
-                    Component.text("$label: ", NamedTextColor.GRAY)
-                        .append(Component.text(value, NamedTextColor.WHITE))
+                val on = messages.word(true)
+                val off = messages.word(false)
+                messages.send(
+                    sender, "status",
+                    "plugins" to server.pluginManager.plugins.size,
+                    "hide-mode" to s.hideMode,
+                    "tab" to messages.word(s.hideTabCompletion),
+                    "brand" to if (s.hideServerBrand) s.fakeServerBrand else messages.text("status-real-brand"),
+                    "channels" to messages.word(s.hidePluginChannels),
+                    "aggressive" to messages.word(s.aggressiveMode),
+                    "detection" to messages.word(s.detectionEnabled),
+                    "honeypots" to s.honeypotCommands.size,
+                    "alert-commands" to s.alertCommands.size,
+                    "discord" to if (s.discordWebhook.isNotEmpty()) on else off,
+                    "file-log" to if (s.logToFile) on else off,
                 )
-                row("Protected Plugins", "${server.pluginManager.plugins.size}")
-                row("Hide Mode", s.hideMode)
-                row("Tab Completion", if (s.hideTabCompletion) "Hidden" else "Visible")
-                row("Server Brand", if (s.hideServerBrand) s.fakeServerBrand else "Real")
-                row("Aggressive Mode", if (s.aggressiveMode) "Enabled" else "Disabled")
-                row("Detection", if (s.detectionEnabled) "On (threshold ${s.detectionScoreThreshold} / ${s.detectionWindowSeconds}s)" else "Off")
-                row("Honeypots", "${s.honeypotCommands.size} configured")
-                row("File Log", if (s.logToFile) "On" else "Off")
             }
-            else -> sender.sendMessage(Component.text("Unknown subcommand. Use /pluginguard for help.", NamedTextColor.RED))
+            else -> messages.send(sender, "unknown-subcommand")
         }
         return true
     }
@@ -369,10 +321,30 @@ class PluginGuard : JavaPlugin(), Listener {
         if (args.size == 1) {
             return listOf("reload", "status", "update").filter { it.startsWith(args[0].lowercase()) }
         }
-        if (args.size >= 2 && args[0].equals("update", ignoreCase = true)) {
+        if (args.size == 2 && args[0].equals("update", ignoreCase = true)) {
             return listOf("check", "download", "restore", "ignore", "unignore", "status")
                 .filter { it.startsWith(args[1].lowercase()) }
         }
         return emptyList()
+    }
+
+    private companion object {
+        val HIDE_MODES = listOf("unknown-command", "empty", "fake-list", "permission-denied")
+
+        /** The command name of a chat line, lowercased, without the slash; null if there is none. */
+        fun baseCommandOf(line: String): String? {
+            var start = if (line.startsWith('/')) 1 else 0
+            // "/  plugins" is still routed by some dispatchers, so skip padding after the slash.
+            while (start < line.length && line[start].isWhitespace()) start++
+            var end = start
+            while (end < line.length && !line[end].isWhitespace()) end++
+            return if (start >= end) null else line.substring(start, end).lowercase()
+        }
+
+        fun stripVanillaNamespace(label: String): String = when {
+            label.startsWith("bukkit:") -> label.substring(7)
+            label.startsWith("minecraft:") -> label.substring(10)
+            else -> label
+        }
     }
 }

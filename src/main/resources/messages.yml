@@ -1,0 +1,68 @@
+# PluginGuard messages
+#
+# Every line PluginGuard shows in chat, except two it copies from your server
+# so they look exactly like the real thing: the "Unknown or incomplete command"
+# reply and the "no permission" reply.
+#
+# Colours use & codes: &a green, &c red, &e yellow, &6 gold, &7 gray, &f white.
+# Words in {curly brackets} are filled in by PluginGuard. Keep them as they are.
+# After editing, run /pluginguard reload.
+
+# ----- What players see instead of the real answer -----
+
+# The fake /plugins list. {count} is how many names are in fake-plugins in
+# config.yml, {plugins} is the names themselves.
+fake-plugin-list: "&fPlugins ({count}): &a{plugins}"
+
+# /plugins when hide-mode is "empty".
+empty-plugin-list: "&fPlugins (0):"
+
+# /version when hide-mode is "fake-list". {brand} is fake-server-brand from
+# config.yml, {version} is your Minecraft version.
+fake-version: "&fThis server is running &a{brand}&f version &a{version}"
+
+# /version when hide-mode is "empty".
+version-disabled: "&cThis command has been disabled."
+
+# /help when hide-mode is "empty" or "fake-list".
+fake-help:
+  - "&6--------- Help: Index ---------"
+  - "&7Use /help [n] to get page n of help."
+
+# /icanhasbukkit when hide-mode is "empty" or "fake-list".
+fake-icanhasbukkit: "&fThis server is not running Bukkit!"
+
+# ----- What staff see -----
+
+# Sent to online staff with the alert permission when someone trips the probe
+# detector. {player} is who, {score} and {seconds} are how much they probed and
+# how fast, {tried} is the commands they typed.
+alert: "&6[PluginGuard] &e{player}&7 looks like they are searching for your plugins (score {score} in {seconds} seconds): &f{tried}"
+
+no-permission: "&cYou don't have permission to use this command."
+reloaded: "&aPluginGuard reloaded its settings and messages."
+unknown-subcommand: "&cThere is no such option. Type /pluginguard to see them all."
+
+help:
+  - "&6PluginGuard"
+  - "&e/pluginguard reload &7- load your changes to config.yml and messages.yml"
+  - "&e/pluginguard status &7- see what is being hidden right now"
+  - "&e/pluginguard update &7- check for a new version and install it"
+
+# /pluginguard status. {on} and {off} below fill in the yes/no answers.
+status:
+  - "&6PluginGuard status"
+  - "&7Plugins being hidden: &f{plugins}"
+  - "&7Reply to /plugins: &f{hide-mode}"
+  - "&7Plugin commands hidden from TAB: &f{tab}"
+  - "&7Server brand players see: &f{brand}"
+  - "&7Plugin channels hidden: &f{channels}"
+  - "&7Aggressive mode: &f{aggressive}"
+  - "&7Probe detection: &f{detection}"
+  - "&7Honeypot commands: &f{honeypots}"
+  - "&7Commands run on an alert: &f{alert-commands}"
+  - "&7Discord alerts: &f{discord}"
+  - "&7Writing probes.log: &f{file-log}"
+status-on: "On"
+status-off: "Off"
+status-real-brand: "the real one"
